@@ -2,6 +2,7 @@ import {
   FileText,
   FolderOpen,
   LayoutDashboard,
+  Globe,
   LogOut,
   Mail,
   Menu,
@@ -21,10 +22,13 @@ import { NotificationBell } from "./NotificationBell";
 /** Sidebar entries, each gated on the permission that makes it useful. */
 const NAV = [
   { to: "/mis", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/mis/applications", label: "Applications", icon: FileText, permission: null },
+  // A CMS manager administers the public site and has no business in the
+  // application queue (section 42); either view permission qualifies.
+  { to: "/mis/applications", label: "Applications", icon: FileText, permission: "applications.view_assigned" },
   { to: "/mis/customers", label: "Customers", icon: Users, permission: "customers.view" },
   { to: "/mis/documents", label: "Documents", icon: FolderOpen, permission: "documents.view" },
   { to: "/mis/emails", label: "Emails", icon: Mail, permission: "emails.send" },
+  { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },
   { to: "/mis/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
 ] as const;
 
@@ -35,9 +39,16 @@ export function MISLayout() {
   const hasPermission = useAuth((state) => state.hasPermission);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const visible = NAV.filter(
-    (item) => !("permission" in item) || !item.permission || hasPermission(item.permission),
-  );
+  const visible = NAV.filter((item) => {
+    if (!("permission" in item) || !item.permission) return true;
+    if (item.permission === "applications.view_assigned") {
+      return (
+        hasPermission("applications.view_assigned") ||
+        hasPermission("applications.view")
+      );
+    }
+    return hasPermission(item.permission);
+  });
 
   function onLogout() {
     logout();

@@ -10,6 +10,20 @@ from applications.views import ApplicationViewSet
 from customers.views import InternalNoteViewSet
 from documents.type_views import DocumentTypeListView
 from documents.views import ApplicationDocumentView, DocumentViewSet
+from cms.views import (
+    ActivityViewSet,
+    BannerViewSet,
+    CompanyInfoView,
+    ContactMessageViewSet,
+    EventViewSet,
+    FAQViewSet,
+    GalleryViewSet,
+    NewsViewSet,
+    PageViewSet,
+    ServiceViewSet,
+    TeamMemberViewSet,
+    TestimonialViewSet,
+)
 from notifications.views import NotificationViewSet
 from visas.views import CountryViewSet, VisaCategoryViewSet, VisaTypeViewSet
 
@@ -17,6 +31,17 @@ router = DefaultRouter()
 router.register("countries", CountryViewSet, basename="country")
 router.register("visa-categories", VisaCategoryViewSet, basename="visa-category")
 router.register("visa-types", VisaTypeViewSet, basename="visa-type")
+router.register("cms/services", ServiceViewSet, basename="cms-service")
+router.register("cms/activities", ActivityViewSet, basename="cms-activity")
+router.register("cms/news", NewsViewSet, basename="cms-news")
+router.register("cms/events", EventViewSet, basename="cms-event")
+router.register("cms/gallery", GalleryViewSet, basename="cms-gallery")
+router.register("cms/faqs", FAQViewSet, basename="cms-faq")
+router.register("cms/testimonials", TestimonialViewSet, basename="cms-testimonial")
+router.register("cms/banners", BannerViewSet, basename="cms-banner")
+router.register("cms/team", TeamMemberViewSet, basename="cms-team")
+router.register("cms/pages", PageViewSet, basename="cms-page")
+router.register("cms/contact-messages", ContactMessageViewSet, basename="cms-contact")
 router.register("applications", ApplicationViewSet, basename="application")
 router.register("documents", DocumentViewSet, basename="document")
 router.register("notifications", NotificationViewSet, basename="notification")
@@ -43,6 +68,7 @@ urlpatterns = [
         application_document_request,
         name="application-document-request",
     ),
+    path("api/cms/company/", CompanyInfoView.as_view(), name="cms-company"),
     path("api/staff/", StaffListView.as_view(), name="staff-list"),
     path("api/document-types/", DocumentTypeListView.as_view(), name="document-types"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
