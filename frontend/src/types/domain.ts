@@ -1,0 +1,132 @@
+/** Content languages of the public site. The MIS itself is English-only. */
+export const CONTENT_LANGUAGES = ["en", "de", "tr"] as const;
+export type ContentLanguage = (typeof CONTENT_LANGUAGES)[number];
+
+/**
+ * Translatable text as the API returns it. English is always present and acts
+ * as the fallback; the other two may still be empty while the CMS catches up.
+ */
+export type Translated = { en: string } & Partial<Record<ContentLanguage, string>>;
+
+export type UserRole =
+  | "super_admin"
+  | "admin"
+  | "visa_officer"
+  | "cms_manager"
+  | "customer";
+
+export interface User {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  phone: string;
+  role: UserRole;
+  is_active: boolean;
+  email_verified: boolean;
+  permissions: string[];
+  created_at: string;
+}
+
+export type ApplicationStatus =
+  | "draft"
+  | "submitted"
+  | "received"
+  | "under_review"
+  | "documents_required"
+  | "documents_submitted"
+  | "verification"
+  | "verified"
+  | "processing"
+  | "submitted_to_authority"
+  | "decision_pending"
+  | "approved"
+  | "completed"
+  | "rejected"
+  | "cancelled"
+  | "withdrawn";
+
+export type DocumentStatus =
+  | "pending"
+  | "verified"
+  | "rejected"
+  | "resubmit_required";
+
+export type Priority = "low" | "normal" | "high" | "urgent";
+
+export interface Country {
+  id: number;
+  code: string;
+  name: Translated;
+  flag_emoji: string;
+}
+
+export interface VisaType {
+  id: number;
+  slug: string;
+  name: Translated;
+  country: Country;
+  description: Translated;
+  requirements: Translated;
+  processing_time: Translated;
+  validity: Translated;
+  entry_type: string;
+  fee_amount: string | null;
+  fee_currency: string;
+  image: string | null;
+  is_featured: boolean;
+}
+
+export interface ApplicationSummary {
+  id: number;
+  application_number: string;
+  full_name: string;
+  status: ApplicationStatus;
+  priority: Priority;
+  visa_type: Pick<VisaType, "id" | "name"> & { country: Country };
+  submitted_at: string | null;
+  created_at: string;
+  assigned_to: Pick<User, "id" | "full_name"> | null;
+}
+
+export interface TimelineEntry {
+  id: number;
+  action: string;
+  description: string;
+  from_status: string;
+  to_status: string;
+  actor_name: string | null;
+  created_at: string;
+}
+
+export interface AppDocument {
+  id: number;
+  document_type: { id: number; code: string; name: Translated };
+  original_filename: string;
+  size_bytes: number;
+  status: DocumentStatus;
+  rejection_reason: string;
+  verified_at: string | null;
+  created_at: string;
+}
+
+export interface Notification {
+  id: number;
+  category: string;
+  title: string;
+  message: string;
+  reference_number: string;
+  link: string;
+  is_read: boolean;
+  play_sound: boolean;
+  created_at: string;
+}
+
+/** Shape of every list endpoint, per the DRF pagination class. */
+export interface Paginated<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}

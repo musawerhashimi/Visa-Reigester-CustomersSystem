@@ -1,0 +1,137 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   One restrained palette across the public site and the MIS: a deep navy that
+   reads as institutional rather than playful, a single amber accent for
+   calls-to-action, and status colours that stay legible as small badges.
+   --------------------------------------------------------------------------- */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui,
+    sans-serif;
+
+  --color-brand-50: oklch(0.97 0.014 258);
+  --color-brand-100: oklch(0.93 0.032 258);
+  --color-brand-200: oklch(0.87 0.058 258);
+  --color-brand-300: oklch(0.78 0.088 258);
+  --color-brand-400: oklch(0.66 0.126 259);
+  --color-brand-500: oklch(0.56 0.152 260);
+  --color-brand-600: oklch(0.48 0.148 261);
+  --color-brand-700: oklch(0.40 0.126 262);
+  --color-brand-800: oklch(0.33 0.098 263);
+  --color-brand-900: oklch(0.27 0.072 264);
+  --color-brand-950: oklch(0.19 0.048 265);
+
+  --color-accent-400: oklch(0.82 0.148 76);
+  --color-accent-500: oklch(0.75 0.162 68);
+  --color-accent-600: oklch(0.66 0.158 58);
+
+  --color-ink-50: oklch(0.985 0.002 260);
+  --color-ink-100: oklch(0.96 0.003 260);
+  --color-ink-200: oklch(0.92 0.005 260);
+  --color-ink-300: oklch(0.85 0.007 260);
+  --color-ink-400: oklch(0.68 0.010 260);
+  --color-ink-500: oklch(0.55 0.012 260);
+  --color-ink-600: oklch(0.44 0.012 260);
+  --color-ink-700: oklch(0.36 0.011 260);
+  --color-ink-800: oklch(0.26 0.009 260);
+  --color-ink-900: oklch(0.18 0.008 260);
+
+  --color-success: oklch(0.62 0.135 152);
+  --color-success-soft: oklch(0.95 0.035 152);
+  --color-warning: oklch(0.75 0.140 75);
+  --color-warning-soft: oklch(0.96 0.040 85);
+  --color-danger: oklch(0.58 0.180 25);
+  --color-danger-soft: oklch(0.95 0.035 25);
+  --color-info: oklch(0.62 0.130 235);
+  --color-info-soft: oklch(0.95 0.032 235);
+
+  --radius-card: 0.875rem;
+
+  /* Layered, low-opacity shadows: depth without the muddy grey halo. */
+  --shadow-subtle: 0 1px 2px oklch(0.19 0.048 265 / 0.05),
+    0 1px 3px oklch(0.19 0.048 265 / 0.04);
+  --shadow-card: 0 1px 3px oklch(0.19 0.048 265 / 0.06),
+    0 8px 24px -6px oklch(0.19 0.048 265 / 0.08);
+  --shadow-lifted: 0 2px 6px oklch(0.19 0.048 265 / 0.07),
+    0 16px 40px -8px oklch(0.19 0.048 265 / 0.14);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-ink-200);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-ink-50);
+    color: var(--color-ink-800);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    color: var(--color-ink-900);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  /* Numbers in tables and stat tiles line up column-wise. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-100);
+    color: var(--color-brand-900);
+  }
+}
+
+@layer components {
+  .card {
+    background-color: white;
+    border: 1px solid var(--color-ink-200);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Scrollbars inside MIS panels, so long lists don't show OS chrome. */
+  .scroll-slim::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-slim::-webkit-scrollbar-thumb {
+    background-color: var(--color-ink-300);
+    border-radius: 9999px;
+  }
+  .scroll-slim::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

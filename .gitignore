@@ -1,0 +1,26 @@
+# Secrets
+.env
+*.pem
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+db.sqlite3
+db.sqlite3-journal
+
+# Uploaded and collected files
+backend/media/
+backend/staticfiles/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
