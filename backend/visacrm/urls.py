@@ -5,7 +5,10 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
+from accounts.staff_views import StaffListView
 from applications.views import ApplicationViewSet
+from customers.views import InternalNoteViewSet
+from documents.type_views import DocumentTypeListView
 from documents.views import ApplicationDocumentView, DocumentViewSet
 from notifications.views import NotificationViewSet
 
@@ -13,6 +16,7 @@ router = DefaultRouter()
 router.register("applications", ApplicationViewSet, basename="application")
 router.register("documents", DocumentViewSet, basename="document")
 router.register("notifications", NotificationViewSet, basename="notification")
+router.register("internal-notes", InternalNoteViewSet, basename="internal-note")
 
 # Uploads are addressed through their application, which is what the
 # permission check keys off.
@@ -35,6 +39,8 @@ urlpatterns = [
         application_document_request,
         name="application-document-request",
     ),
+    path("api/staff/", StaffListView.as_view(), name="staff-list"),
+    path("api/document-types/", DocumentTypeListView.as_view(), name="document-types"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",

@@ -74,6 +74,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
     is_editable_by_customer = serializers.BooleanField(read_only=True)
     missing_documents = serializers.SerializerMethodField()
+    customer = serializers.SerializerMethodField()
+    assigned_to = serializers.SerializerMethodField()
+    allowed_transitions = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -123,6 +126,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "cancellation_reason",
             "is_editable_by_customer",
             "missing_documents",
+            "customer",
+            "assigned_to",
+            "allowed_transitions",
             "documents",
             "timeline",
             "created_at",
@@ -153,6 +159,50 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         from .services import workflow
 
         return workflow.missing_mandatory_documents(obj)
+
+    def get_customer(self, obj):
+        """Who the applicant is. Staff-only: a customer already knows."""
+        request = self.context.get("request")
+        if request and request.user.is_customer:
+            return None
+        user = obj.customer.user
+        return {
+            "id": obj.customer.id,
+            "customer_code": obj.customer.customer_code,
+            "full_name": user.get_full_name() or user.email,
+            "email": user.email,
+            "phone": user.phone,
+        }
+
+    def get_assigned_to(self, obj):
+        if obj.assigned_to is None:
+            return None
+        # Section 57 leaves this to company policy; the officer's name is
+        # withheld from the customer here.
+        request = self.context.get("request")
+        if request and request.user.is_customer:
+            return {"id": None, "full_name": "Assigned"}
+        return {
+            "id": obj.assigned_to.id,
+            "full_name": obj.assigned_to.get_full_name() or obj.assigned_to.email,
+        }
+
+    def get_allowed_transitions(self, obj):
+        """Statuses this application may move to next.
+
+        Served from the workflow's own map so the MIS cannot offer a
+        transition the backend would then refuse.
+        """
+        request = self.context.get("request")
+        if request and request.user.is_customer:
+            return []
+
+        from .services.workflow import ALLOWED_TRANSITIONS
+
+        return [
+            {"value": status, "label": ApplicationStatus(status).label}
+            for status in sorted(ALLOWED_TRANSITIONS.get(obj.status, set()))
+        ]
 
     def validate(self, attrs):
         """Block customer edits once the application is locked (section 16)."""

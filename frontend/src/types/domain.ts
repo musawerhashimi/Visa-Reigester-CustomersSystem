@@ -90,7 +90,89 @@ export interface ApplicationSummary {
   visa_type: Pick<VisaType, "id" | "name"> & { country: Country };
   submitted_at: string | null;
   created_at: string;
-  assigned_to: Pick<User, "id" | "full_name"> | null;
+  assigned_to: StaffBrief | null;
+}
+
+export interface StaffBrief {
+  id: number | null;
+  full_name: string;
+}
+
+export interface CustomerBrief {
+  id: number;
+  customer_code: string;
+  full_name: string;
+  email: string;
+  phone: string;
+}
+
+export interface StatusOption {
+  value: ApplicationStatus;
+  label: string;
+}
+
+export interface DocumentType {
+  id: number;
+  code: string;
+  name: Translated;
+  description: Translated;
+}
+
+export interface InternalNote {
+  id: number;
+  application: number;
+  body: string;
+  author_name: string | null;
+  created_at: string;
+}
+
+/** Full application record as the MIS detail view consumes it. */
+export interface ApplicationDetail extends ApplicationSummary {
+  middle_name: string;
+  father_name: string;
+  mother_name: string;
+  date_of_birth: string | null;
+  place_of_birth: string;
+  gender: string;
+  nationality: string;
+  marital_status: string;
+
+  email: string;
+  phone: string;
+  alternative_phone: string;
+  current_address: string;
+  city: string;
+  country: string;
+
+  passport_number: string;
+  passport_type: string;
+  passport_issue_date: string | null;
+  passport_expiry_date: string | null;
+  passport_issue_country: string;
+
+  purpose_of_travel: string;
+  expected_travel_date: string | null;
+  expected_return_date: string | null;
+  previous_visa: string;
+  previous_travel_history: string;
+
+  education: string;
+  occupation: string;
+  employer: string;
+  emergency_contact: string;
+  additional_notes: string;
+
+  verified_at: string | null;
+  decided_at: string | null;
+  rejection_reason: string;
+  cancellation_reason: string;
+
+  is_editable_by_customer: boolean;
+  missing_documents: string[];
+  customer: CustomerBrief | null;
+  allowed_transitions: StatusOption[];
+  documents: AppDocument[];
+  timeline: TimelineEntry[];
 }
 
 export interface TimelineEntry {
@@ -111,6 +193,10 @@ export interface AppDocument {
   status: DocumentStatus;
   rejection_reason: string;
   verified_at: string | null;
+  /** Null for customers: who reviewed a file is internal detail. */
+  verified_by_name: string | null;
+  download_url: string;
+  content_type: string;
   created_at: string;
 }
 

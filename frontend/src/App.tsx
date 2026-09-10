@@ -12,6 +12,7 @@ const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const MISDashboard = lazy(() => import("@/pages/mis/Dashboard"));
 const MISApplications = lazy(() => import("@/pages/mis/Applications"));
+const MISApplicationDetail = lazy(() => import("@/pages/mis/ApplicationDetail"));
 
 /** Everyone except customers works inside the MIS. */
 const MIS_ROLES: readonly UserRole[] = [
@@ -73,6 +74,7 @@ export default function App() {
             >
               <Route index element={<MISDashboard />} />
               <Route path="applications" element={<MISApplications />} />
+              <Route path="applications/:id" element={<MISApplicationDetail />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
