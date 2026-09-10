@@ -101,7 +101,8 @@ class Document(TimeStampedModel):
         if user.has_perm_slug(perms.DOCUMENTS_VIEW):
             if user.has_perm_slug(perms.APPLICATIONS_VIEW):
                 return True
-            return self.application.assigned_to_id == user.id
+            # Own workload, plus applications nobody has claimed yet.
+            return self.application.assigned_to_id in (user.id, None)
         return False
 
 

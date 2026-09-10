@@ -3,10 +3,38 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.routers import DefaultRouter
+
+from applications.views import ApplicationViewSet
+from documents.views import ApplicationDocumentView, DocumentViewSet
+from notifications.views import NotificationViewSet
+
+router = DefaultRouter()
+router.register("applications", ApplicationViewSet, basename="application")
+router.register("documents", DocumentViewSet, basename="document")
+router.register("notifications", NotificationViewSet, basename="notification")
+
+# Uploads are addressed through their application, which is what the
+# permission check keys off.
+application_documents = ApplicationDocumentView.as_view({"post": "create"})
+application_document_request = ApplicationDocumentView.as_view(
+    {"post": "request_document"}
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
+    path("api/", include(router.urls)),
+    path(
+        "api/applications/<int:application_pk>/documents/",
+        application_documents,
+        name="application-documents",
+    ),
+    path(
+        "api/applications/<int:application_pk>/documents/request/",
+        application_document_request,
+        name="application-document-request",
+    ),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
