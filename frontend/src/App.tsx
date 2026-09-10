@@ -4,15 +4,23 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { MISLayout } from "@/components/mis/MISLayout";
+import { PortalLayout } from "@/components/portal/PortalLayout";
 import { RequireAuth } from "@/components/RequireAuth";
 import { useAuth } from "@/stores/auth";
 import type { UserRole } from "@/types/domain";
 
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
+const Signup = lazy(() => import("@/pages/Signup"));
 const MISDashboard = lazy(() => import("@/pages/mis/Dashboard"));
 const MISApplications = lazy(() => import("@/pages/mis/Applications"));
 const MISApplicationDetail = lazy(() => import("@/pages/mis/ApplicationDetail"));
+const PortalDashboard = lazy(() => import("@/pages/portal/Dashboard"));
+const PortalApplications = lazy(() => import("@/pages/portal/Applications"));
+const PortalApplicationDetail = lazy(() => import("@/pages/portal/ApplicationDetail"));
+const NewApplication = lazy(() => import("@/pages/portal/NewApplication"));
+const PortalNotifications = lazy(() => import("@/pages/portal/Notifications"));
+const PortalProfile = lazy(() => import("@/pages/portal/Profile"));
 
 /** Everyone except customers works inside the MIS. */
 const MIS_ROLES: readonly UserRole[] = [
@@ -63,6 +71,7 @@ export default function App() {
             </Route>
 
             <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
 
             <Route
               path="/mis"
@@ -75,6 +84,22 @@ export default function App() {
               <Route index element={<MISDashboard />} />
               <Route path="applications" element={<MISApplications />} />
               <Route path="applications/:id" element={<MISApplicationDetail />} />
+            </Route>
+
+            <Route
+              path="/portal"
+              element={
+                <RequireAuth roles={["customer"]}>
+                  <PortalLayout />
+                </RequireAuth>
+              }
+            >
+              <Route index element={<PortalDashboard />} />
+              <Route path="applications" element={<PortalApplications />} />
+              <Route path="applications/new" element={<NewApplication />} />
+              <Route path="applications/:id" element={<PortalApplicationDetail />} />
+              <Route path="notifications" element={<PortalNotifications />} />
+              <Route path="profile" element={<PortalProfile />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -11,8 +11,12 @@ from customers.views import InternalNoteViewSet
 from documents.type_views import DocumentTypeListView
 from documents.views import ApplicationDocumentView, DocumentViewSet
 from notifications.views import NotificationViewSet
+from visas.views import CountryViewSet, VisaCategoryViewSet, VisaTypeViewSet
 
 router = DefaultRouter()
+router.register("countries", CountryViewSet, basename="country")
+router.register("visa-categories", VisaCategoryViewSet, basename="visa-category")
+router.register("visa-types", VisaTypeViewSet, basename="visa-type")
 router.register("applications", ApplicationViewSet, basename="application")
 router.register("documents", DocumentViewSet, basename="document")
 router.register("notifications", NotificationViewSet, basename="notification")

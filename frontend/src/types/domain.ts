@@ -62,6 +62,14 @@ export interface Country {
   flag_emoji: string;
 }
 
+export interface RequiredDocument {
+  id: number;
+  document_type: DocumentType;
+  is_mandatory: boolean;
+  notes: Translated;
+  display_order: number;
+}
+
 export interface VisaType {
   id: number;
   slug: string;
@@ -69,6 +77,7 @@ export interface VisaType {
   country: Country;
   description: Translated;
   requirements: Translated;
+  application_instructions: Translated;
   processing_time: Translated;
   validity: Translated;
   entry_type: string;
@@ -76,7 +85,14 @@ export interface VisaType {
   fee_currency: string;
   image: string | null;
   is_featured: boolean;
+  /** The checklist an applicant must satisfy before submitting. */
+  required_documents: RequiredDocument[];
 }
+
+/** Visa identity as nested inside an application row. */
+export type VisaTypeBrief = Pick<VisaType, "id" | "slug" | "name"> & {
+  country: Country;
+};
 
 export interface ApplicationSummary {
   id: number;
@@ -87,7 +103,7 @@ export interface ApplicationSummary {
   customer_name: string;
   status: ApplicationStatus;
   priority: Priority;
-  visa_type: Pick<VisaType, "id" | "name"> & { country: Country };
+  visa_type: VisaTypeBrief;
   submitted_at: string | null;
   created_at: string;
   assigned_to: StaffBrief | null;
