@@ -64,12 +64,11 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         if user.has_perm_slug(perms.APPLICATIONS_VIEW):
             return queryset
 
-        # An officer's *list* is their own workload, but they must still be
-        # able to open unassigned work to triage and claim it — otherwise new
-        # applications would be invisible to everyone who could act on them.
+        # An officer sees their own workload plus anything unclaimed, in the
+        # list as well as the detail view: new applications arrive unassigned,
+        # so hiding them from the list would leave the alerted officer staring
+        # at an empty queue. Work assigned to a colleague stays hidden.
         if user.has_perm_slug(perms.APPLICATIONS_VIEW_ASSIGNED):
-            if self.action == "list":
-                return queryset.filter(assigned_to=user)
             return queryset.filter(
                 models.Q(assigned_to=user) | models.Q(assigned_to__isnull=True)
             )

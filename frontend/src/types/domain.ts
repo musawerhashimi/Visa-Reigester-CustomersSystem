@@ -81,7 +81,10 @@ export interface VisaType {
 export interface ApplicationSummary {
   id: number;
   application_number: string;
+  /** Name as declared on the application itself. */
   full_name: string;
+  /** Name on the customer's account, which may differ from the application. */
+  customer_name: string;
   status: ApplicationStatus;
   priority: Priority;
   visa_type: Pick<VisaType, "id" | "name"> & { country: Country };

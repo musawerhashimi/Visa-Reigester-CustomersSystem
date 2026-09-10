@@ -489,7 +489,14 @@ class AssignmentTests(TestCase):
             ).exists()
         )
 
-    def test_officer_sees_only_their_assigned_applications(self):
+    def test_officer_sees_own_and_unclaimed_but_not_a_colleagues(self):
+        """New work arrives unassigned, so it must appear in the queue."""
+        colleague = User.objects.create_user(
+            email="colleague@test.local",
+            password="StrongPass2026!",
+            role=User.Role.VISA_OFFICER,
+        )
+
         mine = Application.objects.create(
             customer=self.profile,
             visa_type=self.visa,
@@ -497,11 +504,18 @@ class AssignmentTests(TestCase):
             last_name="Case",
             assigned_to=self.officer,
         )
-        Application.objects.create(
+        unclaimed = Application.objects.create(
+            customer=self.profile,
+            visa_type=self.visa,
+            first_name="Nobody",
+            last_name="Yet",
+        )
+        theirs = Application.objects.create(
             customer=self.profile,
             visa_type=self.visa,
             first_name="Someone",
             last_name="Else",
+            assigned_to=colleague,
         )
 
         client = APIClient()
@@ -509,5 +523,11 @@ class AssignmentTests(TestCase):
         response = client.get("/api/applications/")
 
         self.assertEqual(response.status_code, 200)
-        returned = [row["id"] for row in response.data["results"]]
-        self.assertEqual(returned, [mine.pk])
+        returned = {row["id"] for row in response.data["results"]}
+        self.assertEqual(returned, {mine.pk, unclaimed.pk})
+
+        # A colleague's application is neither listed nor openable.
+        self.assertNotIn(theirs.pk, returned)
+        self.assertEqual(
+            client.get(f"/api/applications/{theirs.pk}/").status_code, 404
+        )
