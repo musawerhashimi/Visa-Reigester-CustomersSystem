@@ -8,11 +8,22 @@ import {
   ShieldCheck,
   Users,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
+import { api } from "@/lib/api";
+import {
+  mediaUrl,
+  usePublicContent,
+  type NewsArticle,
+  type TestimonialItem,
+} from "@/lib/cms";
+import { translate } from "@/lib/i18n";
+import type { Paginated, VisaType } from "@/types/domain";
 
 const STATS = [
   { icon: Users, value: "1,250+", key: "home.statsCustomers" },
@@ -46,6 +57,22 @@ const REASONS = [
 
 export default function Home() {
   const { t } = useTranslation();
+
+  // Homepage content comes from the CMS, so the office can change what is
+  // promoted without a deploy. Each section hides itself when empty.
+  const featuredVisas = useQuery({
+    queryKey: ["public", "featured-visas"],
+    queryFn: async () => {
+      const { data } = await api.get<Paginated<VisaType>>("/visa-types/", {
+        params: { is_featured: true, page_size: 3 },
+      });
+      return data.results;
+    },
+  });
+  const latestNews = usePublicContent<NewsArticle>("news", { limit: 3 });
+  const testimonials = usePublicContent<TestimonialItem>("testimonials", {
+    limit: 3,
+  });
 
   return (
     <>
@@ -184,6 +211,107 @@ export default function Home() {
           ))}
         </div>
       </Section>
+
+      {(featuredVisas.data?.length ?? 0) > 0 && (
+        <Section
+          title={t("home.featuredVisas")}
+          subtitle="The visas we are helping most applicants with right now."
+        >
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredVisas.data?.map((visa) => (
+              <article key={visa.id} className="card flex flex-col p-6">
+                <h3 className="text-base font-semibold">{translate(visa.name)}</h3>
+                <p className="mt-0.5 text-sm text-ink-500">
+                  {visa.country.flag_emoji} {translate(visa.country.name)}
+                </p>
+                {translate(visa.description) && (
+                  <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-500">
+                    {translate(visa.description)}
+                  </p>
+                )}
+                <div className="mt-auto pt-5">
+                  {translate(visa.processing_time) && (
+                    <p className="flex items-center gap-1.5 text-xs text-ink-500">
+                      <Clock className="size-3.5" aria-hidden />
+                      {translate(visa.processing_time)}
+                    </p>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="mt-8">
+            <Link to="/visas">
+              <Button variant="outline" icon={<ArrowRight className="size-4" />}>
+                {t("home.exploreVisas")}
+              </Button>
+            </Link>
+          </div>
+        </Section>
+      )}
+
+      {(latestNews.data?.length ?? 0) > 0 && (
+        <Section title={t("home.latestNews")}>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {latestNews.data?.map((article) => {
+              const image = mediaUrl(article.featured_image);
+              return (
+                <article key={article.id} className="card overflow-hidden">
+                  <Link to={`/news/${article.slug}`} className="block">
+                    {image && (
+                      <img
+                        src={image}
+                        alt=""
+                        className="h-40 w-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="p-5">
+                      <h3 className="text-base font-semibold text-ink-900">
+                        {translate(article.title)}
+                      </h3>
+                      {translate(article.short_description) && (
+                        <p className="mt-2 line-clamp-2 text-sm text-ink-500">
+                          {translate(article.short_description)}
+                        </p>
+                      )}
+                      {article.published_at && (
+                        <p className="mt-3 text-xs text-ink-400">
+                          {format(new Date(article.published_at), "d MMMM yyyy")}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        </Section>
+      )}
+
+      {(testimonials.data?.length ?? 0) > 0 && (
+        <Section title={t("home.testimonials")}>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {testimonials.data?.map((item) => (
+              <figure key={item.id} className="card p-6">
+                <blockquote className="text-sm leading-relaxed text-ink-700">
+                  “{translate(item.content)}”
+                </blockquote>
+                <figcaption className="mt-4 text-sm">
+                  <span className="font-medium text-ink-900">
+                    {item.customer_name}
+                  </span>
+                  {translate(item.role) && (
+                    <span className="ml-1.5 text-ink-500">
+                      · {translate(item.role)}
+                    </span>
+                  )}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Closing call to action. */}
       <section className="mx-auto mt-24 max-w-7xl px-4 sm:px-6 lg:px-8">

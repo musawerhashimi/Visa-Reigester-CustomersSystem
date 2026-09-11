@@ -12,6 +12,14 @@ import type { UserRole } from "@/types/domain";
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Signup = lazy(() => import("@/pages/Signup"));
+const About = lazy(() => import("@/pages/public/About"));
+const Services = lazy(() => import("@/pages/public/Services"));
+const Visas = lazy(() => import("@/pages/public/Visas"));
+const Activities = lazy(() => import("@/pages/public/Activities"));
+const News = lazy(() => import("@/pages/public/News"));
+const NewsArticle = lazy(() => import("@/pages/public/NewsArticle"));
+const Gallery = lazy(() => import("@/pages/public/Gallery"));
+const Contact = lazy(() => import("@/pages/public/Contact"));
 const MISDashboard = lazy(() => import("@/pages/mis/Dashboard"));
 const MISApplications = lazy(() => import("@/pages/mis/Applications"));
 const MISApplicationDetail = lazy(() => import("@/pages/mis/ApplicationDetail"));
@@ -71,6 +79,14 @@ export default function App() {
           <Routes>
             <Route element={<PublicLayout />}>
               <Route index element={<Home />} />
+              <Route path="about" element={<About />} />
+              <Route path="services" element={<Services />} />
+              <Route path="visas" element={<Visas />} />
+              <Route path="activities" element={<Activities />} />
+              <Route path="news" element={<News />} />
+              <Route path="news/:slug" element={<NewsArticle />} />
+              <Route path="gallery" element={<Gallery />} />
+              <Route path="contact" element={<Contact />} />
             </Route>
 
             <Route path="/login" element={<Login />} />

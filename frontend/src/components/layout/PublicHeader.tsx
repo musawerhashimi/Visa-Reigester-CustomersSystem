@@ -58,7 +58,7 @@ export function PublicHeader() {
           </span>
         </Link>
 
-        <nav className="ml-4 hidden items-center gap-0.5 lg:flex">
+        <nav className="scroll-slim ml-4 hidden items-center gap-0.5 overflow-x-auto lg:flex">
           {LINKS.map((link) => (
             <NavLink
               key={link.to}
@@ -66,7 +66,7 @@ export function PublicHeader() {
               end={"end" in link ? link.end : undefined}
               className={({ isActive }) =>
                 cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  "whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   isActive
                     ? "bg-brand-50 text-brand-700"
                     : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
