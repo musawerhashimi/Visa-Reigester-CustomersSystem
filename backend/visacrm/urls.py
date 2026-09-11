@@ -24,6 +24,11 @@ from cms.views import (
     TeamMemberViewSet,
     TestimonialViewSet,
 )
+from emails.views import (
+    EmailAttachmentDownloadView,
+    EmailLogViewSet,
+    EmailTemplateViewSet,
+)
 from notifications.views import NotificationViewSet
 from payments.views import (
     OfficialDocumentViewSet,
@@ -51,6 +56,11 @@ router.register("applications", ApplicationViewSet, basename="application")
 router.register("documents", DocumentViewSet, basename="document")
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("internal-notes", InternalNoteViewSet, basename="internal-note")
+router.register("emails", EmailLogViewSet, basename="email")
+router.register("email-templates", EmailTemplateViewSet, basename="email-template")
+router.register(
+    "email-attachments", EmailAttachmentDownloadView, basename="email-attachment"
+)
 router.register("payments", PaymentViewSet, basename="payment")
 router.register("receipts", ReceiptViewSet, basename="receipt")
 router.register(

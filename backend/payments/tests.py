@@ -338,7 +338,9 @@ class OfficialDocumentTests(TestCase):
         # Emailed with the PDF attached (section 32).
         log = EmailLog.objects.filter(to_email="ahmad@doc.test").last()
         self.assertIsNotNone(log)
-        self.assertEqual(log.attachments.count(), 0)  # attachment is on the message
+        # The PDF is kept on the log too, so the history shows what was sent.
+        self.assertEqual(log.attachments.count(), 1)
+        self.assertTrue(log.attachments.first().original_filename.endswith(".pdf"))
         from django.core import mail
 
         self.assertTrue(mail.outbox)

@@ -266,6 +266,42 @@ export interface OfficialDocument {
   created_at: string;
 }
 
+export interface EmailTemplate {
+  id: number;
+  code: string;
+  name: string;
+  subject: string;
+  body: string;
+  trigger: string;
+  is_active: boolean;
+  available_variables: string[];
+}
+
+export interface EmailAttachment {
+  id: number;
+  original_filename: string;
+  size_bytes: number;
+  download_url: string;
+}
+
+export interface EmailLog {
+  id: number;
+  to_email: string;
+  cc: string;
+  subject: string;
+  body: string;
+  application: number | null;
+  application_number: string | null;
+  template_name: string | null;
+  sent_by_name: string | null;
+  is_automatic: boolean;
+  status: "queued" | "sent" | "failed";
+  sent_at: string | null;
+  error_message: string;
+  attachments: EmailAttachment[];
+  created_at: string;
+}
+
 /** Shape of every list endpoint, per the DRF pagination class. */
 export interface Paginated<T> {
   count: number;

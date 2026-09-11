@@ -5,6 +5,8 @@ import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { DocumentReviewList } from "@/components/mis/DocumentReviewList";
+import { EmailComposer } from "@/components/mis/EmailComposer";
+import { EmailHistory } from "@/components/mis/EmailHistory";
 import { PaymentsPanel } from "@/components/mis/PaymentsPanel";
 import { Timeline } from "@/components/mis/Timeline";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +25,13 @@ import type {
   User,
 } from "@/types/domain";
 
-type Tab = "documents" | "details" | "payments" | "timeline" | "notes";
+type Tab =
+  | "documents"
+  | "details"
+  | "payments"
+  | "emails"
+  | "timeline"
+  | "notes";
 
 export default function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
@@ -86,6 +94,7 @@ export default function ApplicationDetail() {
     { key: "documents", label: "Documents", count: documents.length },
     { key: "details", label: "Application details" },
     { key: "payments", label: "Payments & documents" },
+    { key: "emails", label: "Correspondence" },
     { key: "timeline", label: "Timeline", count: timeline.length },
     { key: "notes", label: "Internal notes" },
   ];
@@ -249,9 +258,25 @@ export default function ApplicationDetail() {
 
         {tab === "details" && <DetailFields application={application} />}
         {tab === "payments" && <PaymentsPanel application={application} />}
+        {tab === "emails" && <CorrespondenceTab application={application} />}
         {tab === "timeline" && <Timeline entries={timeline} />}
         {tab === "notes" && <InternalNotes applicationId={applicationId} />}
       </div>
+    </div>
+  );
+}
+
+function CorrespondenceTab({ application }: { application: Application }) {
+  const hasPermission = useAuth((state) => state.hasPermission);
+
+  return (
+    <div>
+      {hasPermission("emails.send") && (
+        <div className="border-b border-ink-200">
+          <EmailComposer application={application} />
+        </div>
+      )}
+      <EmailHistory applicationId={application.id} />
     </div>
   );
 }

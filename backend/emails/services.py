@@ -126,7 +126,29 @@ def send_email(
     log.status = EmailLog.Status.SENT
     log.sent_at = timezone.now()
     log.save(update_fields=["status", "sent_at", "updated_at"])
+
+    # Section 32: the email and what was attached both belong to the
+    # application history, so staff can see later what a customer was sent.
+    _store_attachments(log, attachments)
     return log
+
+
+def _store_attachments(log, attachments):
+    from django.core.files.base import ContentFile
+
+    from .models import EmailAttachment
+
+    for attachment in attachments or []:
+        content = attachment.get("content")
+        if content is None:
+            continue
+        record = EmailAttachment(
+            email=log,
+            original_filename=attachment["filename"][:255],
+            size_bytes=len(content),
+        )
+        record.file.save(attachment["filename"], ContentFile(content), save=False)
+        record.save()
 
 
 def send_from_template(
