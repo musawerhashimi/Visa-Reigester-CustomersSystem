@@ -228,6 +228,44 @@ export interface Notification {
   created_at: string;
 }
 
+export interface Receipt {
+  id: number;
+  receipt_number: string;
+  application: number;
+  download_url: string;
+  is_available_to_customer: boolean;
+  created_at: string;
+}
+
+export interface Payment {
+  id: number;
+  application: number;
+  application_number: string;
+  customer_name: string;
+  amount: string;
+  currency: string;
+  method: "cash" | "bank_transfer" | "other";
+  status: "unpaid" | "partial" | "paid" | "refunded";
+  paid_at: string;
+  reference: string;
+  note: string;
+  /** Null for customers: who took the money is internal detail. */
+  recorded_by_name: string | null;
+  receipt: Receipt | null;
+  created_at: string;
+}
+
+export interface OfficialDocument {
+  id: number;
+  application: number;
+  kind: "verification" | "approval" | "other";
+  title: string;
+  download_url: string;
+  generated_by_name: string | null;
+  is_available_to_customer: boolean;
+  created_at: string;
+}
+
 /** Shape of every list endpoint, per the DRF pagination class. */
 export interface Paginated<T> {
   count: number;

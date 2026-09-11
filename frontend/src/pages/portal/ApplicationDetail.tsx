@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
 import { Timeline } from "@/components/mis/Timeline";
+import { CustomerDownloads } from "@/components/portal/CustomerDownloads";
 import { Button } from "@/components/ui/Button";
 import {
   ApplicationStatusBadge,
@@ -27,14 +28,6 @@ import type {
   AppDocument,
   VisaType,
 } from "@/types/domain";
-
-/** Statuses after which an application accepts no further uploads. */
-const TERMINAL_STATUSES = new Set<string>([
-  "completed",
-  "rejected",
-  "cancelled",
-  "withdrawn",
-]);
 
 export default function PortalApplicationDetail() {
   const { t } = useTranslation();
@@ -101,8 +94,9 @@ export default function PortalApplicationDetail() {
   const documents = application.documents ?? [];
   const missing = application.missing_documents ?? [];
   const isDraft = application.status === "draft";
-  // A closed application accepts no further uploads.
-  const isClosed = TERMINAL_STATUSES.has(application.status);
+  // The server decides when a customer may still change their application
+  // (section 16); duplicating the status list here would let the two drift.
+  const isClosed = !application.is_editable_by_customer;
 
   // One row per required document, showing what has been uploaded against it.
   const checklist = (visaType?.required_documents ?? []).map((requirement) => ({
@@ -228,6 +222,8 @@ export default function PortalApplicationDetail() {
           )}
         </ul>
       </section>
+
+      <CustomerDownloads applicationId={applicationId} />
 
       <section className="card overflow-hidden">
         <header className="border-b border-ink-200 px-5 py-4">

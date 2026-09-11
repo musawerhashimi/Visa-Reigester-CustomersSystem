@@ -25,6 +25,11 @@ from cms.views import (
     TestimonialViewSet,
 )
 from notifications.views import NotificationViewSet
+from payments.views import (
+    OfficialDocumentViewSet,
+    PaymentViewSet,
+    ReceiptViewSet,
+)
 from visas.views import CountryViewSet, VisaCategoryViewSet, VisaTypeViewSet
 
 router = DefaultRouter()
@@ -46,6 +51,11 @@ router.register("applications", ApplicationViewSet, basename="application")
 router.register("documents", DocumentViewSet, basename="document")
 router.register("notifications", NotificationViewSet, basename="notification")
 router.register("internal-notes", InternalNoteViewSet, basename="internal-note")
+router.register("payments", PaymentViewSet, basename="payment")
+router.register("receipts", ReceiptViewSet, basename="receipt")
+router.register(
+    "official-documents", OfficialDocumentViewSet, basename="official-document"
+)
 
 # Uploads are addressed through their application, which is what the
 # permission check keys off.
