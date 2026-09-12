@@ -7,7 +7,7 @@ from rest_framework.routers import DefaultRouter
 
 from accounts.staff_views import StaffListView
 from applications.views import ApplicationViewSet
-from customers.views import InternalNoteViewSet
+from customers.views import CustomerViewSet, InternalNoteViewSet
 from documents.type_views import DocumentTypeListView
 from documents.views import ApplicationDocumentView, DocumentViewSet
 from cms.views import (
@@ -56,6 +56,7 @@ router.register("cms/contact-messages", ContactMessageViewSet, basename="cms-con
 router.register("applications", ApplicationViewSet, basename="application")
 router.register("documents", DocumentViewSet, basename="document")
 router.register("notifications", NotificationViewSet, basename="notification")
+router.register("customers", CustomerViewSet, basename="customer")
 router.register("internal-notes", InternalNoteViewSet, basename="internal-note")
 router.register("emails", EmailLogViewSet, basename="email")
 router.register("email-templates", EmailTemplateViewSet, basename="email-template")

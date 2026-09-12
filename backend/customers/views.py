@@ -1,13 +1,69 @@
 from django.db import models
+from django.db.models import Count
 from rest_framework import mixins, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.response import Response
 
 from accounts import permissions as perms
 from applications.models import Application
 from core.permissions import IsMISUser
 
-from .models import InternalNote
-from .serializers import InternalNoteSerializer
+from .models import CustomerProfile, InternalNote
+from .serializers import CustomerProfileSerializer, InternalNoteSerializer
+
+
+class CustomerViewSet(
+    mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+):
+    """The customer directory staff work from (section 23)."""
+
+    serializer_class = CustomerProfileSerializer
+    permission_classes = (IsMISUser,)
+    filterset_fields = ("status", "country", "nationality")
+    search_fields = (
+        "customer_code",
+        "user__first_name",
+        "user__last_name",
+        "user__email",
+        "user__phone",
+    )
+    ordering_fields = ("created_at", "customer_code")
+
+    def get_queryset(self):
+        if not self.request.user.has_perm_slug(perms.CUSTOMERS_VIEW):
+            return CustomerProfile.objects.none()
+        return (
+            CustomerProfile.objects.alive()
+            .select_related("user")
+            .annotate(application_count=Count("applications"))
+        )
+
+    def _set_active(self, request, active):
+        """Section 23: customers are deactivated, never deleted."""
+        if not request.user.has_perm_slug(perms.CUSTOMERS_EDIT):
+            raise PermissionDenied("You cannot change customer accounts.")
+
+        customer = self.get_object()
+        customer.status = (
+            CustomerProfile.Status.ACTIVE if active else CustomerProfile.Status.INACTIVE
+        )
+        customer.save(update_fields=["status", "updated_at"])
+
+        # The login must go with it, or a deactivated customer could still
+        # sign in and see their applications.
+        customer.user.is_active = active
+        customer.user.save(update_fields=["is_active", "updated_at"])
+
+        return Response(self.get_serializer(customer).data)
+
+    @action(detail=True, methods=["post"])
+    def deactivate(self, request, pk=None):
+        return self._set_active(request, False)
+
+    @action(detail=True, methods=["post"])
+    def reactivate(self, request, pk=None):
+        return self._set_active(request, True)
 
 
 class InternalNoteViewSet(

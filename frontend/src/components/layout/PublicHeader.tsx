@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { useAuth } from "@/stores/auth";
 
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { UserMenu } from "./UserMenu";
 
 const LINKS = [
   { to: "/", key: "nav.home", end: true },
@@ -82,9 +83,7 @@ export function PublicHeader() {
           <LanguageSwitcher className="hidden sm:block" />
 
           {user ? (
-            <Link to="/portal" className="hidden sm:block">
-              <Button size="sm">{t("nav.portal")}</Button>
-            </Link>
+            <UserMenu className="hidden sm:block" />
           ) : (
             <>
               <Link
@@ -136,9 +135,7 @@ export function PublicHeader() {
               <LanguageSwitcher />
               <div className="ml-auto flex gap-2">
                 {user ? (
-                  <Link to="/portal">
-                    <Button size="sm">{t("nav.portal")}</Button>
-                  </Link>
+                  <UserMenu />
                 ) : (
                   <>
                     <Link to="/login">

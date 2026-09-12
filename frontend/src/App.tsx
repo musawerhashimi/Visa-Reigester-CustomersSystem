@@ -24,6 +24,10 @@ const MISDashboard = lazy(() => import("@/pages/mis/Dashboard"));
 const MISApplications = lazy(() => import("@/pages/mis/Applications"));
 const MISApplicationDetail = lazy(() => import("@/pages/mis/ApplicationDetail"));
 const MISReports = lazy(() => import("@/pages/mis/Reports"));
+const MISCustomers = lazy(() => import("@/pages/mis/Customers"));
+const MISDocuments = lazy(() => import("@/pages/mis/Documents"));
+const MISEmails = lazy(() => import("@/pages/mis/Emails"));
+const MISSettings = lazy(() => import("@/pages/mis/Settings"));
 const CMSHome = lazy(() => import("@/pages/mis/cms/CMSHome"));
 const ContentList = lazy(() => import("@/pages/mis/cms/ContentList"));
 const ContentEditor = lazy(() => import("@/pages/mis/cms/ContentEditor"));
@@ -104,7 +108,11 @@ export default function App() {
               <Route index element={<MISDashboard />} />
               <Route path="applications" element={<MISApplications />} />
               <Route path="applications/:id" element={<MISApplicationDetail />} />
+              <Route path="customers" element={<MISCustomers />} />
+              <Route path="documents" element={<MISDocuments />} />
+              <Route path="emails" element={<MISEmails />} />
               <Route path="reports" element={<MISReports />} />
+              <Route path="settings" element={<MISSettings />} />
               <Route path="cms" element={<CMSHome />} />
               <Route path="cms/:type" element={<ContentList />} />
               <Route path="cms/:type/:id" element={<ContentEditor />} />

@@ -16,11 +16,18 @@ class DocumentSerializer(serializers.ModelSerializer):
     document_type = DocumentTypeSerializer(read_only=True)
     verified_by_name = serializers.SerializerMethodField()
     download_url = serializers.SerializerMethodField()
+    application_number = serializers.CharField(
+        source="application.application_number", read_only=True
+    )
+    customer_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Document
         fields = (
             "id",
+            "application",
+            "application_number",
+            "customer_name",
             "document_type",
             "original_filename",
             "content_type",
@@ -32,6 +39,14 @@ class DocumentSerializer(serializers.ModelSerializer):
             "download_url",
             "created_at",
         )
+
+    def get_customer_name(self, obj):
+        """Staff-only: a customer already knows whose application this is."""
+        request = self.context.get("request")
+        if request and request.user.is_customer:
+            return None
+        user = obj.application.customer.user
+        return user.get_full_name() or user.email
 
     def get_verified_by_name(self, obj):
         """Hidden from customers: who reviewed a file is internal detail."""
