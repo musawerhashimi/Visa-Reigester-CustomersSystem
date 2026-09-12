@@ -7,20 +7,53 @@ import axios, {
 const ACCESS_TOKEN_KEY = "visacrm.access";
 const REFRESH_TOKEN_KEY = "visacrm.refresh";
 
+/**
+ * Session tokens, scoped to one browser tab.
+ *
+ * sessionStorage rather than localStorage: localStorage is shared across every
+ * tab of an origin, so opening the portal in a second tab — or following a
+ * pasted deep link — would walk straight past the login screen on a machine
+ * the customer may not be alone at. A tab that did not sign in has no session.
+ */
+const storage = (): Storage | null => {
+  try {
+    return window.sessionStorage;
+  } catch {
+    // Private modes and some embedded browsers throw on access; the app then
+    // behaves as signed out rather than crashing.
+    return null;
+  }
+};
+
+/** Tokens written by an older build that used localStorage. */
+function purgeLegacyTokens() {
+  try {
+    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+    window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  } catch {
+    // Nothing to clean up if storage is unavailable.
+  }
+}
+
+purgeLegacyTokens();
+
 export const tokenStore = {
   get access() {
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
+    return storage()?.getItem(ACCESS_TOKEN_KEY) ?? null;
   },
   get refresh() {
-    return localStorage.getItem(REFRESH_TOKEN_KEY);
+    return storage()?.getItem(REFRESH_TOKEN_KEY) ?? null;
   },
   set(access: string, refresh?: string) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, access);
-    if (refresh) localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    const store = storage();
+    if (!store) return;
+    store.setItem(ACCESS_TOKEN_KEY, access);
+    if (refresh) store.setItem(REFRESH_TOKEN_KEY, refresh);
   },
   clear() {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    const store = storage();
+    store?.removeItem(ACCESS_TOKEN_KEY);
+    store?.removeItem(REFRESH_TOKEN_KEY);
   },
 };
 

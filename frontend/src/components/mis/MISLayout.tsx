@@ -3,6 +3,7 @@ import {
   FolderOpen,
   LayoutDashboard,
   Globe,
+  BarChart3,
   LogOut,
   Mail,
   Menu,
@@ -28,6 +29,7 @@ const NAV = [
   { to: "/mis/customers", label: "Customers", icon: Users, permission: "customers.view" },
   { to: "/mis/documents", label: "Documents", icon: FolderOpen, permission: "documents.view" },
   { to: "/mis/emails", label: "Emails", icon: Mail, permission: "emails.send" },
+  { to: "/mis/reports", label: "Reports", icon: BarChart3, permission: "reports.view" },
   { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },
   { to: "/mis/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
 ] as const;

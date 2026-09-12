@@ -23,6 +23,7 @@ const Contact = lazy(() => import("@/pages/public/Contact"));
 const MISDashboard = lazy(() => import("@/pages/mis/Dashboard"));
 const MISApplications = lazy(() => import("@/pages/mis/Applications"));
 const MISApplicationDetail = lazy(() => import("@/pages/mis/ApplicationDetail"));
+const MISReports = lazy(() => import("@/pages/mis/Reports"));
 const CMSHome = lazy(() => import("@/pages/mis/cms/CMSHome"));
 const ContentList = lazy(() => import("@/pages/mis/cms/ContentList"));
 const ContentEditor = lazy(() => import("@/pages/mis/cms/ContentEditor"));
@@ -103,6 +104,7 @@ export default function App() {
               <Route index element={<MISDashboard />} />
               <Route path="applications" element={<MISApplications />} />
               <Route path="applications/:id" element={<MISApplicationDetail />} />
+              <Route path="reports" element={<MISReports />} />
               <Route path="cms" element={<CMSHome />} />
               <Route path="cms/:type" element={<ContentList />} />
               <Route path="cms/:type/:id" element={<ContentEditor />} />

@@ -30,6 +30,7 @@ from emails.views import (
     EmailTemplateViewSet,
 )
 from notifications.views import NotificationViewSet
+from reports.views import ReportViewSet
 from payments.views import (
     OfficialDocumentViewSet,
     PaymentViewSet,
@@ -61,6 +62,7 @@ router.register("email-templates", EmailTemplateViewSet, basename="email-templat
 router.register(
     "email-attachments", EmailAttachmentDownloadView, basename="email-attachment"
 )
+router.register("reports", ReportViewSet, basename="report")
 router.register("payments", PaymentViewSet, basename="payment")
 router.register("receipts", ReceiptViewSet, basename="receipt")
 router.register(
