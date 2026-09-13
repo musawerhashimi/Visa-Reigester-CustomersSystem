@@ -12,6 +12,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from accounts import permissions as perms
 from audit import services as audit
 from emails import services as email_service
 from emails.models import EmailTemplate
@@ -90,6 +91,49 @@ ALLOWED_TRANSITIONS = {
     ApplicationStatus.CANCELLED: set(),
     ApplicationStatus.WITHDRAWN: set(),
 }
+
+# The happy path, in order, for the MIS progress stepper. Side routes
+# (documents_required, rejected, cancelled, withdrawn) are deliberately
+# absent: they are detours off this line, not stages along it.
+PIPELINE = (
+    ApplicationStatus.DRAFT,
+    ApplicationStatus.SUBMITTED,
+    ApplicationStatus.RECEIVED,
+    ApplicationStatus.UNDER_REVIEW,
+    ApplicationStatus.VERIFICATION,
+    ApplicationStatus.VERIFIED,
+    ApplicationStatus.PROCESSING,
+    ApplicationStatus.SUBMITTED_TO_AUTHORITY,
+    ApplicationStatus.DECISION_PENDING,
+    ApplicationStatus.APPROVED,
+    ApplicationStatus.COMPLETED,
+)
+
+
+# Decisions that need more than the general edit permission. Anything absent
+# is covered by APPLICATIONS_EDIT alone; these are the ones a company wants
+# to keep in named hands.
+STATUS_PERMISSIONS = {
+    ApplicationStatus.VERIFIED: perms.APPLICATIONS_VERIFY,
+    ApplicationStatus.APPROVED: perms.APPLICATIONS_APPROVE,
+    ApplicationStatus.REJECTED: perms.APPLICATIONS_APPROVE,
+}
+
+
+def permitted_transitions(application, user):
+    """The statuses this user may actually move this application to."""
+    allowed = ALLOWED_TRANSITIONS.get(application.status, set())
+    return {
+        status
+        for status in allowed
+        if _may_set_status(user, status)
+    }
+
+
+def _may_set_status(user, status):
+    required = STATUS_PERMISSIONS.get(status)
+    return required is None or user.has_perm_slug(required)
+
 
 # Status changes the customer should hear about by email.
 STATUS_EMAIL_TRIGGERS = {

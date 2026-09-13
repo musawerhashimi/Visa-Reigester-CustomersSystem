@@ -336,6 +336,71 @@ class VisaApplicationFlowTests(TestCase):
 
     # --- status transitions ----------------------------------------------
 
+    def test_approving_needs_the_approve_permission(self):
+        """Editing an application must not imply authority to decide it."""
+        from accounts import permissions as perms
+
+        application = self.make_application(
+            status=ApplicationStatus.PROCESSING, assigned_to=self.officer
+        )
+        self.officer.denied_permissions = [perms.APPLICATIONS_APPROVE]
+        self.officer.save(update_fields=["denied_permissions"])
+        self.addCleanup(
+            lambda: type(self.officer).objects.filter(pk=self.officer.pk).update(
+                denied_permissions=[]
+            )
+        )
+
+        response = self.auth(self.officer).post(
+            f"/api/applications/{application.pk}/change-status/",
+            {"status": ApplicationStatus.APPROVED},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.PROCESSING)
+
+        # And the MIS must not offer what the API would refuse.
+        detail = self.auth(self.officer).get(
+            f"/api/applications/{application.pk}/"
+        ).data
+        offered = {row["value"] for row in detail["allowed_transitions"]}
+        self.assertNotIn(ApplicationStatus.APPROVED, offered)
+
+    def test_the_pipeline_marks_where_the_application_has_reached(self):
+        application = self.make_application(
+            status=ApplicationStatus.VERIFIED, assigned_to=self.officer
+        )
+
+        detail = self.auth(self.officer).get(
+            f"/api/applications/{application.pk}/"
+        ).data
+
+        stages = {row["value"]: row["state"] for row in detail["pipeline"]}
+        self.assertEqual(stages[ApplicationStatus.VERIFIED], "current")
+        self.assertEqual(stages[ApplicationStatus.RECEIVED], "done")
+        self.assertEqual(stages[ApplicationStatus.APPROVED], "upcoming")
+
+    def test_a_rejected_application_keeps_the_progress_it_made(self):
+        """The stepper must not blank out work already done."""
+        application = self.make_application(assigned_to=self.officer)
+        workflow.add_timeline(
+            application,
+            action="Status changed",
+            to_status=ApplicationStatus.PROCESSING,
+        )
+        application.status = ApplicationStatus.REJECTED
+        application.save(update_fields=["status"])
+
+        detail = self.auth(self.officer).get(
+            f"/api/applications/{application.pk}/"
+        ).data
+
+        stages = {row["value"]: row["state"] for row in detail["pipeline"]}
+        self.assertEqual(stages[ApplicationStatus.PROCESSING], "done")
+        self.assertEqual(stages[ApplicationStatus.APPROVED], "upcoming")
+
     def test_illegal_status_jump_is_refused(self):
         application = self.make_application()
         client = self.auth(self.officer)

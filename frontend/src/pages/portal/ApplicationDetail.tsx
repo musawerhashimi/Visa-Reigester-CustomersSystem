@@ -26,8 +26,26 @@ import { translate } from "@/lib/i18n";
 import type {
   ApplicationDetail as Application,
   AppDocument,
+  Notification,
+  Paginated,
   VisaType,
 } from "@/types/domain";
+
+type PortalTab = "documents" | "files" | "tracking";
+
+/**
+ * Which tab a notification belongs to.
+ *
+ * Anything not listed is a general update, which belongs with the progress
+ * history rather than with a file the customer has to act on.
+ */
+const TAB_FOR_CATEGORY: Record<string, PortalTab> = {
+  document_required: "documents",
+  document_rejected: "documents",
+  document_verified: "documents",
+  receipt_available: "files",
+  payment: "files",
+};
 
 export default function PortalApplicationDetail() {
   const { t } = useTranslation();
@@ -35,6 +53,7 @@ export default function PortalApplicationDetail() {
   const applicationId = Number(id);
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<PortalTab>("documents");
 
   const { data: application, isLoading, isError } = useQuery({
     queryKey: ["portal", "application", applicationId],
@@ -47,7 +66,11 @@ export default function PortalApplicationDetail() {
 
   // The checklist lives on the visa type, so an applicant can see every
   // required document — including the ones not yet uploaded.
-  const { data: visaType } = useQuery({
+  const {
+    data: visaType,
+    isPending: checklistPending,
+    isError: checklistFailed,
+  } = useQuery({
     queryKey: ["visa-type", application?.visa_type.slug],
     queryFn: async () => {
       const { data } = await api.get<VisaType>(
@@ -58,10 +81,50 @@ export default function PortalApplicationDetail() {
     enabled: Boolean(application?.visa_type.slug),
   });
 
-  const refresh = () =>
-    queryClient.invalidateQueries({
+  // Unread notifications for this application decide which tabs carry a red
+  // mark. Notifications are the only record of what the customer has not yet
+  // seen, so the badge follows them rather than inventing its own tracking.
+  const { data: unread } = useQuery({
+    queryKey: ["portal", "unread", applicationId],
+    queryFn: async () => {
+      const { data } = await api.get<Paginated<Notification>>("/notifications/", {
+        params: { application: applicationId, unread: "true", page_size: 100 },
+      });
+      return data.results;
+    },
+    enabled: Number.isFinite(applicationId),
+  });
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({
       queryKey: ["portal", "application", applicationId],
     });
+    void queryClient.invalidateQueries({
+      queryKey: ["portal", "unread", applicationId],
+    });
+  };
+
+  // Opening a tab is the customer seeing it, so its red mark clears.
+  const markTabRead = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map((id) => api.post(`/notifications/${id}/read/`)));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["portal", "unread", applicationId],
+      });
+      // The header bell counts the same notifications.
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  function openTab(next: PortalTab) {
+    setTab(next);
+    const ids = (unread ?? [])
+      .filter((item) => (TAB_FOR_CATEGORY[item.category] ?? "tracking") === next)
+      .map((item) => item.id);
+    if (ids.length > 0) markTabRead.mutate(ids);
+  }
 
   const submit = useMutation({
     mutationFn: () => api.post(`/applications/${applicationId}/submit/`),
@@ -98,19 +161,68 @@ export default function PortalApplicationDetail() {
   // (section 16); duplicating the status list here would let the two drift.
   const isClosed = !application.is_editable_by_customer;
 
-  // One row per required document, showing what has been uploaded against it.
-  const checklist = (visaType?.required_documents ?? []).map((requirement) => ({
-    requirement,
-    document: documents.find(
-      (doc) => doc.document_type.id === requirement.document_type.id,
-    ),
-  }));
-  const extraDocuments = documents.filter(
-    (doc) =>
-      !(visaType?.required_documents ?? []).some(
-        (requirement) => requirement.document_type.id === doc.document_type.id,
-      ),
+  // One row per document the applicant owes, from two sources: the visa
+  // type's standing checklist, plus anything staff asked for on top of it.
+  // Keyed by document type so a request for a listed document reuses its row
+  // rather than appearing twice.
+  const requests = (application.document_requests ?? []).filter(
+    (entry) => entry.status === "pending",
   );
+
+  const checklist = [
+    ...(visaType?.required_documents ?? []).map((requirement) => ({
+      id: `required-${requirement.id}`,
+      documentType: requirement.document_type,
+      mandatory: requirement.is_mandatory,
+      requestedMessage: requests.find(
+        (entry) => entry.document_type.id === requirement.document_type.id,
+      )?.message,
+    })),
+    ...requests
+      .filter(
+        (entry) =>
+          !(visaType?.required_documents ?? []).some(
+            (requirement) =>
+              requirement.document_type.id === entry.document_type.id,
+          ),
+      )
+      .map((entry) => ({
+        id: `requested-${entry.id}`,
+        documentType: entry.document_type,
+        mandatory: true,
+        requestedMessage: entry.message,
+      })),
+  ].map((row) => ({
+    ...row,
+    document: documents.find((doc) => doc.document_type.id === row.documentType.id),
+  }));
+
+  const extraDocuments = documents.filter(
+    (doc) => !checklist.some((row) => row.documentType.id === doc.document_type.id),
+  );
+
+  // One red mark per tab, counting only what the customer has not yet seen.
+  const unreadByTab = (unread ?? []).reduce<Record<PortalTab, number>>(
+    (totals, item) => {
+      const target = TAB_FOR_CATEGORY[item.category] ?? "tracking";
+      totals[target] += 1;
+      return totals;
+    },
+    { documents: 0, files: 0, tracking: 0 },
+  );
+
+  // A document still owed is news whether or not a notification survives.
+  const outstanding = checklist.filter((row) => !row.document).length;
+
+  const TABS: { key: PortalTab; label: string; badge: number }[] = [
+    {
+      key: "documents",
+      label: "Documents to upload",
+      badge: unreadByTab.documents || outstanding,
+    },
+    { key: "files", label: "Your files", badge: unreadByTab.files },
+    { key: "tracking", label: "Progress", badge: unreadByTab.tracking },
+  ];
 
   return (
     <div className="space-y-6">
@@ -178,23 +290,58 @@ export default function PortalApplicationDetail() {
         )}
       </header>
 
-      <section className="card overflow-hidden">
+      <div className="card overflow-hidden">
+        {/* Tabs rather than one long page: the customer comes here to do one
+            thing — upload something, fetch a file, or check progress. */}
+        <div
+          role="tablist"
+          className="scroll-slim flex gap-1 overflow-x-auto border-b border-ink-200 px-3 pt-3"
+        >
+          {TABS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.key}
+              onClick={() => openTab(item.key)}
+              className={
+                tab === item.key
+                  ? "-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 border-brand-600 px-3.5 py-2.5 text-sm font-medium text-brand-700"
+                  : "-mb-px flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3.5 py-2.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-800"
+              }
+            >
+              {item.label}
+              {item.badge > 0 && (
+                <span
+                  className="tabular grid min-w-[18px] place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white"
+                  aria-label={`${item.badge} new`}
+                >
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+      {tab === "documents" && (
+      <section>
         <header className="border-b border-ink-200 px-5 py-4">
-          <h2 className="text-sm font-semibold">{t("portal.documents")}</h2>
+          <h2 className="text-sm font-semibold">Documents to upload</h2>
           <p className="mt-0.5 text-xs text-ink-500">
-            PDF, JPG, PNG or WebP, up to 10 MB each.
+            Send us a photo or a PDF of each one. Up to 10 MB per file.
           </p>
         </header>
 
         <ul className="divide-y divide-ink-100">
-          {checklist.map(({ requirement, document }) => (
+          {checklist.map((row) => (
             <DocumentRow
-              key={requirement.id}
+              key={row.id}
               applicationId={applicationId}
-              documentTypeId={requirement.document_type.id}
-              label={translate(requirement.document_type.name)}
-              mandatory={requirement.is_mandatory}
-              document={document}
+              documentTypeId={row.documentType.id}
+              label={translate(row.documentType.name)}
+              mandatory={row.mandatory}
+              requestedMessage={row.requestedMessage}
+              document={row.document}
               locked={isClosed}
               onUploaded={refresh}
               onError={setError}
@@ -217,20 +364,42 @@ export default function PortalApplicationDetail() {
 
           {checklist.length === 0 && extraDocuments.length === 0 && (
             <li className="px-5 py-10 text-center text-sm text-ink-500">
-              {t("common.loading")}
+              {/* An empty list is not the same as a pending one: a visa type
+                  with no checklist would otherwise say "Loading…" forever. */}
+              {checklistPending ? (
+                t("common.loading")
+              ) : checklistFailed ? (
+                t("common.errorTitle")
+              ) : (
+                <>
+                  This visa does not require any documents up front.
+                  <span className="mt-1 block text-xs text-ink-400">
+                    We will contact you if something is needed.
+                  </span>
+                </>
+              )}
             </li>
           )}
         </ul>
       </section>
+      )}
 
-      <CustomerDownloads applicationId={applicationId} />
+      {tab === "files" && (
+        <CustomerDownloads applicationId={applicationId} />
+      )}
 
-      <section className="card overflow-hidden">
-        <header className="border-b border-ink-200 px-5 py-4">
-          <h2 className="text-sm font-semibold">{t("portal.tracking")}</h2>
-        </header>
-        <Timeline entries={application.timeline ?? []} />
-      </section>
+      {tab === "tracking" && (
+        <section>
+          <header className="border-b border-ink-200 px-5 py-4">
+            <h2 className="text-sm font-semibold">Progress</h2>
+            <p className="mt-0.5 text-xs text-ink-500">
+              Every step we have taken on your application, newest first.
+            </p>
+          </header>
+          <Timeline entries={application.timeline ?? []} />
+        </section>
+      )}
+      </div>
     </div>
   );
 }
@@ -240,6 +409,7 @@ function DocumentRow({
   documentTypeId,
   label,
   mandatory,
+  requestedMessage,
   document: existing,
   locked,
   onUploaded,
@@ -249,6 +419,8 @@ function DocumentRow({
   documentTypeId: number;
   label: string;
   mandatory: boolean;
+  /** Set when staff asked for this specific document, with their note. */
+  requestedMessage?: string;
   document?: AppDocument;
   locked: boolean;
   onUploaded: () => void;
@@ -330,6 +502,13 @@ function DocumentRow({
             </p>
           ) : (
             <p className="mt-0.5 text-xs text-ink-400">Not uploaded yet</p>
+          )}
+
+          {requestedMessage !== undefined && !existing && (
+            <p className="mt-2 rounded-lg bg-info-soft px-3 py-2 text-xs text-info">
+              <span className="font-medium">Requested by our team</span>
+              {requestedMessage && ` — ${requestedMessage}`}
+            </p>
           )}
 
           {existing?.rejection_reason && (

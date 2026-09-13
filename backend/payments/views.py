@@ -3,6 +3,7 @@ from django.http import FileResponse, Http404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from accounts import permissions as perms
@@ -140,9 +141,16 @@ class OfficialDocumentViewSet(
         name = (document.pdf.name or "document.pdf").split("/")[-1]
         return _serve_pdf(document.pdf, name)
 
-    @action(detail=False, methods=["post"])
+    # Staff may attach the real visa or authority letter, so this action
+    # takes multipart as well as the JSON used when the system generates
+    # its own letter.
+    @action(
+        detail=False,
+        methods=["post"],
+        parser_classes=(MultiPartParser, FormParser, JSONParser),
+    )
     def issue(self, request):
-        """Generate a verification certificate or approval letter."""
+        """Issue an official document, from an upload or a generated letter."""
         if not request.user.has_perm_slug(perms.RECEIPTS_GENERATE):
             raise PermissionDenied("You cannot issue official documents.")
 
@@ -162,6 +170,7 @@ class OfficialDocumentViewSet(
                 title=data["title"],
                 release_to_customer=data["release_to_customer"],
                 send_email=data["send_email"],
+                uploaded_file=data.get("file"),
                 actor=request.user,
                 request=request,
             )

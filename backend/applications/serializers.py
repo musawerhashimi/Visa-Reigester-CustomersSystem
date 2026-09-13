@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from documents.serializers import DocumentSerializer
+from documents.models import DocumentRequest
+from documents.serializers import DocumentRequestSerializer, DocumentSerializer
 from visas.models import VisaType
 from visas.serializers import VisaTypeBriefSerializer
 
@@ -70,6 +71,8 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         queryset=VisaType.objects.all(), source="visa_type", write_only=True
     )
     documents = serializers.SerializerMethodField()
+    document_requests = serializers.SerializerMethodField()
+    pipeline = serializers.SerializerMethodField()
     timeline = serializers.SerializerMethodField()
     full_name = serializers.CharField(read_only=True)
     is_editable_by_customer = serializers.BooleanField(read_only=True)
@@ -129,7 +132,9 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "customer",
             "assigned_to",
             "allowed_transitions",
+            "pipeline",
             "documents",
+            "document_requests",
             "timeline",
             "created_at",
         )
@@ -147,6 +152,60 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     def get_documents(self, obj):
         documents = obj.documents.filter(is_current=True).select_related("document_type")
         return DocumentSerializer(documents, many=True, context=self.context).data
+
+    def get_pipeline(self, obj):
+        """The ordered stages, each marked done / current / upcoming.
+
+        The MIS stepper renders this rather than hardcoding the sequence,
+        so the picture always matches the workflow the backend enforces.
+        """
+        request = self.context.get("request")
+        if request and request.user.is_customer:
+            return []
+
+        from .services.workflow import PIPELINE
+
+        try:
+            position = PIPELINE.index(obj.status)
+        except ValueError:
+            # Rejected, cancelled and withdrawn sit off the line. Showing an
+            # empty bar would deny the work already done, so fall back to the
+            # furthest stage the application actually reached.
+            reached = {
+                entry.to_status for entry in obj.timeline.all() if entry.to_status
+            }
+            indexes = [
+                index
+                for index, status in enumerate(PIPELINE)
+                if status in reached
+            ]
+            position = max(indexes) + 1 if indexes else 0
+
+        return [
+            {
+                "value": status,
+                "label": ApplicationStatus(status).label,
+                "state": (
+                    "done"
+                    if position > index
+                    else "current"
+                    if position == index
+                    else "upcoming"
+                ),
+            }
+            for index, status in enumerate(PIPELINE)
+        ]
+
+    def get_document_requests(self, obj):
+        """Documents staff have asked for beyond the visa's own checklist.
+
+        The customer's upload panel is built from these as well, so a request
+        for something the visa type never listed still reaches them.
+        """
+        requests = obj.document_requests.filter(
+            status=DocumentRequest.Status.PENDING
+        ).select_related("document_type")
+        return DocumentRequestSerializer(requests, many=True).data
 
     def get_timeline(self, obj):
         entries = obj.timeline.select_related("actor")
@@ -197,11 +256,11 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         if request and request.user.is_customer:
             return []
 
-        from .services.workflow import ALLOWED_TRANSITIONS
+        from .services.workflow import permitted_transitions
 
         return [
             {"value": status, "label": ApplicationStatus(status).label}
-            for status in sorted(ALLOWED_TRANSITIONS.get(obj.status, set()))
+            for status in sorted(permitted_transitions(obj, request.user))
         ]
 
     def validate(self, attrs):

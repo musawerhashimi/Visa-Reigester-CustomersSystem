@@ -9,13 +9,17 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { notificationSocket, playAlertTone } from "@/lib/notifications";
 import { useAuth } from "@/stores/auth";
+import type { Notification, Paginated } from "@/types/domain";
 
 const NAV = [
   { to: "/portal", key: "portal.dashboard", icon: LayoutDashboard, end: true },
@@ -29,7 +33,34 @@ export function PortalLayout() {
   const navigate = useNavigate();
   const user = useAuth((state) => state.user);
   const logout = useAuth((state) => state.logout);
+  const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // The customer needs to see that something is waiting without opening the
+  // page first, so the nav entry carries the unread count.
+  const { data: notifications } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => {
+      const { data } = await api.get<Paginated<Notification>>("/notifications/", {
+        params: { page_size: 50 },
+      });
+      return data.results;
+    },
+  });
+
+  const unreadCount = (notifications ?? []).filter((item) => !item.is_read).length;
+
+  useEffect(() => {
+    notificationSocket.connect();
+    const unsubscribe = notificationSocket.subscribe((notification) => {
+      void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      if (notification.play_sound) playAlertTone();
+    });
+    return () => {
+      unsubscribe();
+      notificationSocket.disconnect();
+    };
+  }, [queryClient]);
 
   function onLogout() {
     logout();
@@ -66,6 +97,9 @@ export function PortalLayout() {
               >
                 <Icon className="size-4" aria-hidden />
                 {t(key)}
+                {key === "portal.notifications" && unreadCount > 0 && (
+                  <UnreadBadge count={unreadCount} />
+                )}
               </NavLink>
             ))}
           </nav>
@@ -112,6 +146,9 @@ export function PortalLayout() {
               >
                 <Icon className="size-4" aria-hidden />
                 {t(key)}
+                {key === "portal.notifications" && unreadCount > 0 && (
+                  <UnreadBadge count={unreadCount} />
+                )}
               </NavLink>
             ))}
             <NavLink
@@ -130,5 +167,17 @@ export function PortalLayout() {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+/** The red count that tells a customer something new is waiting. */
+function UnreadBadge({ count }: { count: number }) {
+  return (
+    <span
+      className="tabular ml-1 grid min-w-[18px] place-items-center rounded-full bg-danger px-1 text-[10px] font-semibold text-white"
+      aria-label={`${count} unread`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }

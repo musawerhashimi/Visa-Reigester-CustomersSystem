@@ -3,7 +3,8 @@
 from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
-from django.test import TransactionTestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
+from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from visacrm.asgi import application
@@ -108,3 +109,95 @@ class NotificationSocketTests(TransactionTestCase):
 
         self.assertEqual(response["type"], "pong")
         await communicator.disconnect()
+
+
+class NotificationScopingTests(TestCase):
+    """The portal groups a customer's unread items by application."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.core.management import call_command
+
+        call_command("seed_demo", verbosity=0)
+
+        from applications.models import Application
+        from customers.models import CustomerProfile
+        from visas.models import VisaType
+
+        cls.customer = User.objects.create_user(
+            email="tabs@notify.test", password="StrongPass2026!"
+        )
+        profile = CustomerProfile.objects.create(user=cls.customer)
+        visa = VisaType.objects.get(slug="germany-student-visa")
+        cls.first = Application.objects.create(customer=profile, visa_type=visa)
+        cls.second = Application.objects.create(customer=profile, visa_type=visa)
+
+    def _client(self):
+        client = APIClient()
+        client.force_authenticate(user=self.customer)
+        return client
+
+    def test_notifications_can_be_filtered_to_one_application(self):
+        notify(
+            self.customer,
+            category=Notification.Category.DOCUMENT_REQUIRED,
+            title="Upload your passport",
+            application=self.first,
+        )
+        notify(
+            self.customer,
+            category=Notification.Category.PAYMENT,
+            title="Payment recorded",
+            application=self.second,
+        )
+
+        response = self._client().get(
+            "/api/notifications/", {"application": self.first.pk}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        row = response.data["results"][0]
+        self.assertEqual(row["application"], self.first.pk)
+        # The tab badge keys off the category, so it has to come through.
+        self.assertEqual(row["category"], "document_required")
+
+    def test_unread_filter_combines_with_the_application_filter(self):
+        unread = notify(
+            self.customer,
+            category=Notification.Category.RECEIPT_AVAILABLE,
+            title="Receipt ready",
+            application=self.first,
+        )
+        read = notify(
+            self.customer,
+            category=Notification.Category.APPLICATION_UPDATE,
+            title="Status changed",
+            application=self.first,
+        )
+        read.mark_read()
+
+        response = self._client().get(
+            "/api/notifications/",
+            {"application": self.first.pk, "unread": "true"},
+        )
+
+        ids = {row["id"] for row in response.data["results"]}
+        self.assertEqual(ids, {unread.pk})
+
+    def test_a_customer_never_sees_another_persons_notifications(self):
+        other = User.objects.create_user(
+            email="intruder@notify.test", password="StrongPass2026!"
+        )
+        notify(
+            other,
+            category=Notification.Category.PAYMENT,
+            title="Not yours",
+            application=self.first,
+        )
+
+        response = self._client().get(
+            "/api/notifications/", {"application": self.first.pk}
+        )
+
+        self.assertEqual(response.data["count"], 0)

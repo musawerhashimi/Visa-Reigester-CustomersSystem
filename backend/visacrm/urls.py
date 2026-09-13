@@ -37,12 +37,22 @@ from payments.views import (
     PaymentViewSet,
     ReceiptViewSet,
 )
-from visas.views import CountryViewSet, VisaCategoryViewSet, VisaTypeViewSet
+from visas.views import (
+    CountryViewSet,
+    RequiredDocumentViewSet,
+    VisaCategoryViewSet,
+    VisaTypeViewSet,
+)
 
 router = DefaultRouter()
 router.register("countries", CountryViewSet, basename="country")
 router.register("visa-categories", VisaCategoryViewSet, basename="visa-category")
 router.register("visa-types", VisaTypeViewSet, basename="visa-type")
+router.register(
+    "visa-required-documents",
+    RequiredDocumentViewSet,
+    basename="visa-required-document",
+)
 router.register("cms/services", ServiceViewSet, basename="cms-service")
 router.register("cms/activities", ActivityViewSet, basename="cms-activity")
 router.register("cms/news", NewsViewSet, basename="cms-news")

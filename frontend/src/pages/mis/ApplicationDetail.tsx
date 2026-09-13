@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertTriangle, ArrowLeft, Mail, Phone, Send, UserPlus } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Mail,
+  Phone,
+  Send,
+  UserPlus,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -9,6 +17,7 @@ import { EmailComposer } from "@/components/mis/EmailComposer";
 import { EmailHistory } from "@/components/mis/EmailHistory";
 import { PaymentsPanel } from "@/components/mis/PaymentsPanel";
 import { Timeline } from "@/components/mis/Timeline";
+import { WorkflowStepper } from "@/components/mis/WorkflowStepper";
 import { Button } from "@/components/ui/Button";
 import {
   ApplicationStatusBadge,
@@ -22,6 +31,7 @@ import type {
   DocumentType,
   InternalNote,
   Paginated,
+  StatusOption,
   User,
 } from "@/types/domain";
 
@@ -55,8 +65,8 @@ export default function ApplicationDetail() {
     queryClient.invalidateQueries({ queryKey: ["mis", "application", applicationId] });
 
   const changeStatus = useMutation({
-    mutationFn: (status: string) =>
-      api.post(`/applications/${applicationId}/change-status/`, { status }),
+    mutationFn: ({ status, note }: { status: string; note?: string }) =>
+      api.post(`/applications/${applicationId}/change-status/`, { status, note }),
     onSuccess: () => {
       setActionError(null);
       void refresh();
@@ -144,26 +154,15 @@ export default function ApplicationDetail() {
               />
             )}
 
-            {transitions.length > 0 && (
-              <select
-                value=""
-                onChange={(event) => {
-                  if (event.target.value) changeStatus.mutate(event.target.value);
-                }}
-                disabled={changeStatus.isPending}
-                aria-label="Change status"
-                className="rounded-lg border border-ink-300 bg-white px-3 py-2 text-sm font-medium text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
-              >
-                <option value="">Change status…</option>
-                {transitions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            )}
+            <NextActions
+              transitions={transitions}
+              pending={changeStatus.isPending}
+              onChange={(status, note) => changeStatus.mutate({ status, note })}
+            />
           </div>
         </div>
+
+        <WorkflowStepper pipeline={application.pipeline ?? []} status={application.status} />
 
         {actionError && (
           <p role="alert" className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
@@ -278,6 +277,138 @@ function CorrespondenceTab({ application }: { application: Application }) {
       )}
       <EmailHistory applicationId={application.id} />
     </div>
+  );
+}
+
+/** Statuses that end or interrupt the workflow, shown as secondary actions. */
+const NEGATIVE_STATUSES = new Set([
+  "rejected",
+  "cancelled",
+  "withdrawn",
+  "documents_required",
+]);
+
+/** Statuses a person should have to justify before committing to them. */
+const NEEDS_REASON = new Set(["rejected", "cancelled"]);
+
+/**
+ * The moves available from here, as buttons rather than a dropdown.
+ *
+ * Advancing is the common case and gets a primary button; ending or pausing
+ * the application sits alongside in a quieter style, and the destructive
+ * ones ask for a reason first so the customer is told why.
+ */
+function NextActions({
+  transitions,
+  pending,
+  onChange,
+}: {
+  transitions: StatusOption[];
+  pending: boolean;
+  onChange: (status: string, note?: string) => void;
+}) {
+  const [reasonFor, setReasonFor] = useState<StatusOption | null>(null);
+  const [reason, setReason] = useState("");
+
+  if (transitions.length === 0) {
+    return (
+      <p className="self-center text-sm text-ink-500">
+        No further steps — this application is closed.
+      </p>
+    );
+  }
+
+  const forward = transitions.filter((item) => !NEGATIVE_STATUSES.has(item.value));
+  const other = transitions.filter((item) => NEGATIVE_STATUSES.has(item.value));
+
+  function choose(option: StatusOption) {
+    if (NEEDS_REASON.has(option.value)) {
+      setReason("");
+      setReasonFor(option);
+      return;
+    }
+    onChange(option.value);
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {forward.map((option, index) => (
+          <Button
+            key={option.value}
+            size="sm"
+            variant={index === 0 ? "primary" : "outline"}
+            disabled={pending}
+            onClick={() => choose(option)}
+            icon={<ArrowRight className="size-3.5" />}
+          >
+            {option.label}
+          </Button>
+        ))}
+
+        {other.map((option) => (
+          <Button
+            key={option.value}
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() => choose(option)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </div>
+
+      {reasonFor && (
+        <div
+          role="dialog"
+          aria-label={`Reason for ${reasonFor.label}`}
+          className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 p-4"
+        >
+          <form
+            className="card w-full max-w-md space-y-4 p-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onChange(reasonFor.value, reason.trim());
+              setReasonFor(null);
+            }}
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-ink-900">
+                {reasonFor.label}
+              </h2>
+              <p className="mt-1 text-xs text-ink-500">
+                The customer is told why, so write it for them to read.
+              </p>
+            </div>
+
+            <textarea
+              autoFocus
+              required
+              rows={4}
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Reason…"
+              className="w-full rounded-lg border border-ink-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+            />
+
+            <div className="flex gap-3">
+              <Button type="submit" size="sm" loading={pending} disabled={!reason.trim()}>
+                Confirm {reasonFor.label.toLowerCase()}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setReasonFor(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+    </>
   );
 }
 

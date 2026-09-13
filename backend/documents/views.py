@@ -104,6 +104,18 @@ class ApplicationDocumentView(viewsets.ViewSet):
 
     parser_classes = (MultiPartParser, FormParser)
 
+    def get_parsers(self):
+        # Uploading carries a file and must stay multipart, but requesting a
+        # document is plain data and the MIS sends it as JSON. These routes
+        # are wired with as_view() rather than a router, which drops an
+        # @action's parser_classes — so the choice is made here instead.
+        # `action` is not set this early, but the method map that as_view()
+        # built already names the handler this request will reach.
+        handlers = set(getattr(self, "action_map", {}).values())
+        if "request_document" in handlers:
+            return [JSONParser(), FormParser(), MultiPartParser()]
+        return super().get_parsers()
+
     def _get_application(self, request, application_pk):
         queryset = Application.objects.alive().select_related("customer__user")
         application = queryset.filter(pk=application_pk).first()

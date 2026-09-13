@@ -32,6 +32,19 @@ const MISAccounts = lazy(() => import("@/pages/mis/Accounts"));
 const CMSHome = lazy(() => import("@/pages/mis/cms/CMSHome"));
 const ContentList = lazy(() => import("@/pages/mis/cms/ContentList"));
 const ContentEditor = lazy(() => import("@/pages/mis/cms/ContentEditor"));
+const VisasHome = lazy(() => import("@/pages/mis/visas/VisasHome"));
+const VisaTypeList = lazy(() => import("@/pages/mis/visas/VisaTypeList"));
+const VisaTypeEditor = lazy(() => import("@/pages/mis/visas/VisaTypeEditor"));
+const VisaCountryList = lazy(() =>
+  import("@/pages/mis/visas/CatalogueLists").then((module) => ({
+    default: module.CountryList,
+  })),
+);
+const VisaCategoryList = lazy(() =>
+  import("@/pages/mis/visas/CatalogueLists").then((module) => ({
+    default: module.CategoryList,
+  })),
+);
 const PortalDashboard = lazy(() => import("@/pages/portal/Dashboard"));
 const PortalApplications = lazy(() => import("@/pages/portal/Applications"));
 const PortalApplicationDetail = lazy(() => import("@/pages/portal/ApplicationDetail"));
@@ -118,6 +131,11 @@ export default function App() {
               <Route path="cms" element={<CMSHome />} />
               <Route path="cms/:type" element={<ContentList />} />
               <Route path="cms/:type/:id" element={<ContentEditor />} />
+              <Route path="visas" element={<VisasHome />} />
+              <Route path="visas/types" element={<VisaTypeList />} />
+              <Route path="visas/types/:slug" element={<VisaTypeEditor />} />
+              <Route path="visas/countries" element={<VisaCountryList />} />
+              <Route path="visas/categories" element={<VisaCategoryList />} />
             </Route>
 
             <Route

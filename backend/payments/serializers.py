@@ -1,5 +1,7 @@
+import os
 from decimal import Decimal
 
+from django.conf import settings
 from rest_framework import serializers
 
 from .models import OfficialDocument, Payment, Receipt
@@ -89,6 +91,7 @@ class RecordPaymentSerializer(serializers.Serializer):
 
 class OfficialDocumentSerializer(serializers.ModelSerializer):
     download_url = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
     generated_by_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -99,6 +102,7 @@ class OfficialDocumentSerializer(serializers.ModelSerializer):
             "kind",
             "title",
             "download_url",
+            "filename",
             "generated_by_name",
             "is_available_to_customer",
             "created_at",
@@ -107,6 +111,16 @@ class OfficialDocumentSerializer(serializers.ModelSerializer):
 
     def get_download_url(self, obj):
         return f"/api/official-documents/{obj.pk}/download/"
+
+    def get_filename(self, obj):
+        """What the file should be saved as.
+
+        An attached document may be a scan rather than a PDF, so the real
+        stored name is the only thing that gets the extension right.
+        """
+        if not obj.pdf:
+            return ""
+        return obj.pdf.name.split("/")[-1]
 
     def get_generated_by_name(self, obj):
         request = self.context.get("request")
@@ -122,3 +136,25 @@ class IssueDocumentSerializer(serializers.Serializer):
     title = serializers.CharField(required=False, allow_blank=True, default="")
     release_to_customer = serializers.BooleanField(default=True)
     send_email = serializers.BooleanField(default=True)
+    #: The real visa, OIC or authority letter. Without one the system falls
+    #: back to generating its own letter from the application's data.
+    file = serializers.FileField(required=False, allow_null=True)
+
+    def validate_file(self, value):
+        if value is None:
+            return value
+
+        max_size = getattr(settings, "MAX_UPLOAD_SIZE_BYTES", 10 * 1024 * 1024)
+        if value.size > max_size:
+            limit_mb = max_size / (1024 * 1024)
+            raise serializers.ValidationError(
+                f"File is too large. The maximum size is {limit_mb:.0f} MB."
+            )
+
+        allowed = getattr(settings, "ALLOWED_UPLOAD_EXTENSIONS", ())
+        extension = os.path.splitext(value.name)[1].lower()
+        if allowed and extension not in allowed:
+            raise serializers.ValidationError(
+                f"Unsupported file type '{extension}'. Allowed: {', '.join(allowed)}."
+            )
+        return value

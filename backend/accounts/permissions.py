@@ -80,6 +80,11 @@ _ROLE_PERMISSIONS = {
             CUSTOMERS_VIEW,
             APPLICATIONS_VIEW_ASSIGNED,
             APPLICATIONS_EDIT,
+            # Verifying and deciding are separately permissioned, so an
+            # individual officer can have either revoked without inventing
+            # a new role.
+            APPLICATIONS_VERIFY,
+            APPLICATIONS_APPROVE,
             DOCUMENTS_VIEW,
             DOCUMENTS_VERIFY,
             DOCUMENTS_REJECT,

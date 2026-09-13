@@ -18,6 +18,9 @@ class NotificationViewSet(
         queryset = Notification.objects.filter(recipient=self.request.user)
         if self.request.query_params.get("unread") == "true":
             queryset = queryset.filter(read_at__isnull=True)
+        application = self.request.query_params.get("application")
+        if application:
+            queryset = queryset.filter(application_id=application)
         return queryset
 
     @action(detail=False, methods=["get"], url_path="unread-count")

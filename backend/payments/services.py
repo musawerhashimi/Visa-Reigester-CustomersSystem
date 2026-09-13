@@ -4,6 +4,9 @@ No money moves through this system: a customer pays the office directly and
 a staff member records it here, so the MIS keeps the financial history.
 """
 
+import mimetypes
+import os
+
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils import timezone
@@ -144,6 +147,7 @@ def issue_official_document(
     title="",
     release_to_customer=True,
     send_email=True,
+    uploaded_file=None,
 ):
     """Generate a verification certificate or approval letter (section 36).
 
@@ -175,9 +179,16 @@ def issue_official_document(
         is_available_to_customer=release_to_customer,
     )
 
-    buffer = pdf.render_official_document(document)
-    filename = f"{application.application_number}-{kind}.pdf"
-    document.pdf.save(filename, ContentFile(buffer.read()), save=True)
+    if uploaded_file is not None:
+        # The real visa, OIC or authority letter. Keep its own extension so
+        # the customer receives a scan as a scan, not mislabelled as a PDF.
+        extension = os.path.splitext(uploaded_file.name)[1].lower() or ".pdf"
+        filename = f"{application.application_number}-{kind}{extension}"
+        document.pdf.save(filename, uploaded_file, save=True)
+    else:
+        buffer = pdf.render_official_document(document)
+        filename = f"{application.application_number}-{kind}.pdf"
+        document.pdf.save(filename, ContentFile(buffer.read()), save=True)
 
     workflow.add_timeline(
         application,
@@ -229,11 +240,16 @@ def _email_document(application, document, label, actor):
         # not raise out of the issuing transaction.
         return None
 
+    # An uploaded scan may be a JPEG or PNG, so read the type off the name
+    # rather than asserting PDF for everything.
+    filename = document.pdf.name.split("/")[-1]
+    mimetype = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
     attachments = [
         {
-            "filename": document.pdf.name.split("/")[-1],
+            "filename": filename,
             "content": content,
-            "mimetype": "application/pdf",
+            "mimetype": mimetype,
         }
     ]
 

@@ -31,6 +31,7 @@ const NAV = [
   { to: "/mis/documents", label: "Documents", icon: FolderOpen, permission: "documents.view" },
   { to: "/mis/emails", label: "Emails", icon: Mail, permission: "emails.send" },
   { to: "/mis/reports", label: "Reports", icon: BarChart3, permission: "reports.view" },
+  { to: "/mis/visas", label: "Visa types", icon: Plane, permission: "visas.manage" },
   { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },
   { to: "/mis/accounts", label: "Users & Accounts", icon: ShieldCheck, permission: "users.view" },
   { to: "/mis/settings", label: "Settings", icon: Settings, permission: "settings.manage" },

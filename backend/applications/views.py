@@ -114,6 +114,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         serializer = StatusChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Verifying and deciding are separately permissioned, so that editing
+        # an application does not imply the authority to approve it.
+        target = serializer.validated_data["status"]
+        required = workflow.STATUS_PERMISSIONS.get(target)
+        if required and not request.user.has_perm_slug(required):
+            raise PermissionDenied(
+                f"You cannot move an application to '{target}'."
+            )
+
         try:
             workflow.change_status(
                 application,

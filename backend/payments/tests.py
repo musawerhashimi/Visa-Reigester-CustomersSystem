@@ -405,6 +405,102 @@ class OfficialDocumentTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("approved", response.data["detail"].lower())
 
+    def test_staff_attach_the_real_visa_instead_of_a_generated_letter(self):
+        """The scanned visa or OIC is the document the customer needs; a
+        generated letter is only the fallback."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        application = self.make_application(
+            status=ApplicationStatus.APPROVED, decided_at=timezone.now()
+        )
+        scan = SimpleUploadedFile(
+            "visa-scan.jpg", b"\xff\xd8\xff\xe0 not really a jpeg", "image/jpeg"
+        )
+
+        response = self.client_for(self.admin).post(
+            "/api/official-documents/issue/",
+            {
+                "application": application.pk,
+                "kind": "approval",
+                "title": "Visa sticker",
+                "file": scan,
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+
+        document = OfficialDocument.objects.get(pk=response.data["id"])
+        # Stored under its own extension, not relabelled as a PDF.
+        self.assertTrue(document.pdf.name.endswith(".jpg"), document.pdf.name)
+        document.pdf.open("rb")
+        self.assertEqual(document.pdf.read(), b"\xff\xd8\xff\xe0 not really a jpeg")
+        document.pdf.close()
+
+        # And emailed to the customer as that same file.
+        log = EmailLog.objects.filter(to_email="ahmad@doc.test").last()
+        self.assertIsNotNone(log)
+
+    def test_an_oversized_attachment_is_refused(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import override_settings
+
+        application = self.make_application(
+            status=ApplicationStatus.APPROVED, decided_at=timezone.now()
+        )
+        oversized = SimpleUploadedFile("huge.pdf", b"x" * 2048, "application/pdf")
+
+        # Lower the ceiling rather than allocate a real oversized file: the
+        # branch under test is the comparison, not the megabytes.
+        with override_settings(MAX_UPLOAD_SIZE_BYTES=1024):
+            response = self.client_for(self.admin).post(
+                "/api/official-documents/issue/",
+                {"application": application.pk, "kind": "approval", "file": oversized},
+                format="multipart",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("file", response.data)
+
+    def test_issuing_without_a_file_still_generates_the_letter(self):
+        application = self.make_application(
+            status=ApplicationStatus.APPROVED, decided_at=timezone.now()
+        )
+
+        response = self.client_for(self.admin).post(
+            "/api/official-documents/issue/",
+            {"application": application.pk, "kind": "approval"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        document = OfficialDocument.objects.get(pk=response.data["id"])
+        self.assertTrue(document.pdf.name.endswith(".pdf"))
+
+    def test_the_customer_is_told_the_real_filename(self):
+        """An attached scan must not be saved as ".pdf" on the customer's
+        machine, so the API has to name the stored file."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        application = self.make_application(
+            status=ApplicationStatus.APPROVED, decided_at=timezone.now()
+        )
+        self.client_for(self.admin).post(
+            "/api/official-documents/issue/",
+            {
+                "application": application.pk,
+                "kind": "approval",
+                "file": SimpleUploadedFile("visa.jpg", b"\xff\xd8\xff", "image/jpeg"),
+            },
+            format="multipart",
+        )
+
+        listing = self.client_for(self.customer_user).get("/api/official-documents/")
+        row = listing.data["results"][0]
+
+        self.assertTrue(row["filename"].endswith(".jpg"), row["filename"])
+        self.assertNotIn("/", row["filename"])
+
     def test_customer_cannot_issue_a_document(self):
         application = self.make_application(
             status=ApplicationStatus.APPROVED, decided_at=timezone.now()

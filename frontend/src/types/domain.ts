@@ -60,6 +60,17 @@ export interface Country {
   code: string;
   name: Translated;
   flag_emoji: string;
+  /** Inactive countries stay out of the applicant's picker. */
+  is_active?: boolean;
+}
+
+export interface VisaCategory {
+  id: number;
+  slug: string;
+  name: Translated;
+  description: Translated;
+  status?: string;
+  display_order?: number;
 }
 
 export interface RequiredDocument {
@@ -85,8 +96,13 @@ export interface VisaType {
   fee_currency: string;
   image: string | null;
   is_featured: boolean;
+  category: VisaCategory | null;
+  /** Only published types are offered on the application form. */
+  status: string;
+  display_order: number;
   /** The checklist an applicant must satisfy before submitting. */
   required_documents: RequiredDocument[];
+  missing_translations: ContentLanguage[];
 }
 
 /** Visa identity as nested inside an application row. */
@@ -125,6 +141,10 @@ export interface CustomerBrief {
 export interface StatusOption {
   value: ApplicationStatus;
   label: string;
+}
+
+export interface PipelineStage extends StatusOption {
+  state: "done" | "current" | "upcoming";
 }
 
 export interface DocumentType {
@@ -187,8 +207,22 @@ export interface ApplicationDetail extends ApplicationSummary {
   missing_documents: string[];
   customer: CustomerBrief | null;
   allowed_transitions: StatusOption[];
+  /** The ordered happy-path stages, for the MIS progress stepper. */
+  pipeline: PipelineStage[];
   documents: AppDocument[];
+  /** Pending requests from staff, beyond the visa type's own checklist. */
+  document_requests: DocumentRequest[];
   timeline: TimelineEntry[];
+}
+
+export interface DocumentRequest {
+  id: number;
+  application: number;
+  document_type: DocumentType;
+  message: string;
+  status: string;
+  created_at: string;
+  fulfilled_at: string | null;
 }
 
 export interface TimelineEntry {
@@ -261,6 +295,8 @@ export interface OfficialDocument {
   kind: "verification" | "approval" | "other";
   title: string;
   download_url: string;
+  /** The stored file's real name, so a scan is not saved as ".pdf". */
+  filename: string;
   generated_by_name: string | null;
   is_available_to_customer: boolean;
   created_at: string;

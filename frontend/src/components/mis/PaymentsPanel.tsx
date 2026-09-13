@@ -33,6 +33,7 @@ export function PaymentsPanel({
   const canIssue = hasPermission("receipts.generate");
 
   const [error, setError] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState<"verification" | "approval" | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     amount: "",
@@ -91,10 +92,37 @@ export function PaymentsPanel({
   });
 
   const issue = useMutation({
-    mutationFn: (kind: "verification" | "approval") =>
-      api.post("/official-documents/issue/", { application: application.id, kind }),
+    mutationFn: async ({
+      kind,
+      file,
+      title,
+    }: {
+      kind: "verification" | "approval";
+      file?: File | null;
+      title?: string;
+    }) => {
+      // With a real visa or letter to attach the request has to be
+      // multipart; without one the server generates its own PDF.
+      if (!file) {
+        await api.post("/official-documents/issue/", {
+          application: application.id,
+          kind,
+          title,
+        });
+        return;
+      }
+      const body = new FormData();
+      body.append("application", String(application.id));
+      body.append("kind", kind);
+      if (title) body.append("title", title);
+      body.append("file", file);
+      await api.post("/official-documents/issue/", body, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    },
     onSuccess: () => {
       setError(null);
+      setAttaching(null);
       refresh();
     },
     onError: (err) => setError(apiErrorMessage(err, "Could not issue the document.")),
@@ -289,14 +317,13 @@ export function PaymentsPanel({
                 size="sm"
                 variant="outline"
                 icon={<FileText className="size-3.5" />}
-                loading={issue.isPending && issue.variables === "verification"}
                 disabled={!isVerified}
                 title={
                   isVerified
                     ? undefined
                     : "Available once the application has been verified"
                 }
-                onClick={() => issue.mutate("verification")}
+                onClick={() => setAttaching("verification")}
               >
                 Verification
               </Button>
@@ -304,12 +331,11 @@ export function PaymentsPanel({
                 size="sm"
                 variant="accent"
                 icon={<Award className="size-3.5" />}
-                loading={issue.isPending && issue.variables === "approval"}
                 disabled={!isApproved}
                 title={
                   isApproved ? undefined : "Available once the application is approved"
                 }
-                onClick={() => issue.mutate("approval")}
+                onClick={() => setAttaching("approval")}
               >
                 Approval
               </Button>
@@ -321,6 +347,15 @@ export function PaymentsPanel({
           Issuing a document emails it to the customer and publishes it to their
           portal.
         </p>
+
+        {attaching && (
+          <IssueForm
+            kind={attaching}
+            pending={issue.isPending}
+            onCancel={() => setAttaching(null)}
+            onSubmit={(file, title) => issue.mutate({ kind: attaching, file, title })}
+          />
+        )}
 
         <ul className="mt-4 divide-y divide-ink-100 border-t border-ink-100">
           {documents.data?.length === 0 && (
@@ -364,5 +399,87 @@ export function PaymentsPanel({
         </ul>
       </section>
     </div>
+  );
+}
+
+/**
+ * Issuing an official document, with or without a file.
+ *
+ * The document the customer actually needs is usually a real one — the visa
+ * sticker, an OIC, an authority letter — so attaching it is the default
+ * path. Without a file the system falls back to generating its own letter.
+ */
+function IssueForm({
+  kind,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  kind: "verification" | "approval";
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (file: File | null, title: string) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+
+  const label = kind === "approval" ? "Approval" : "Verification";
+
+  return (
+    <form
+      className="mt-4 space-y-4 rounded-xl border border-ink-200 bg-ink-50 p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(file, title.trim());
+      }}
+    >
+      <h4 className="text-sm font-semibold text-ink-900">Issue {label.toLowerCase()} document</h4>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="official-document-title"
+          className="block text-sm font-medium text-ink-700"
+        >
+          Title
+        </label>
+        <input
+          id="official-document-title"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder={`Application ${label.toLowerCase()}`}
+          className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <label
+          htmlFor="official-document-file"
+          className="block text-sm font-medium text-ink-700"
+        >
+          Attach the document
+        </label>
+        <input
+          id="official-document-file"
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.webp"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink-100 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+        />
+        <p className="text-xs text-ink-500">
+          {file
+            ? "This file is emailed to the customer and published to their portal."
+            : "Optional — without a file the system generates a letter from the application."}
+        </p>
+      </div>
+
+      <div className="flex gap-3">
+        <Button type="submit" size="sm" loading={pending}>
+          Issue and send
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
   );
 }

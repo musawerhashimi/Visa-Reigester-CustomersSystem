@@ -13,6 +13,9 @@ class NotificationSerializer(serializers.ModelSerializer):
             "category",
             "title",
             "message",
+            # The portal groups unread items by the application they concern,
+            # so the badge on each tab knows what is new.
+            "application",
             "reference_number",
             "link",
             "is_read",
