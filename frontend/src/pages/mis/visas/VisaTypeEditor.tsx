@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { api, apiErrorMessage } from "@/lib/api";
+import { mediaUrl } from "@/lib/cms";
 import { translate } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import type {
@@ -98,9 +99,14 @@ export default function VisaTypeEditor() {
         "required_documents",
         "missing_translations",
         "published_at",
-        "image",
       ]) {
         delete payload[key];
+      }
+      // An untouched picture is still the URL the API returned. Sending that
+      // back is rejected as "not a file", so only a freshly picked File is
+      // kept; anything else leaves the stored image alone.
+      if (!(payload.image instanceof File)) {
+        delete payload.image;
       }
       // Empty strings mean "not set" for these; the API wants null.
       if (!payload.category_id) payload.category_id = null;
@@ -109,11 +115,29 @@ export default function VisaTypeEditor() {
       // type is saved without touching it, and that default is live.
       payload.status ??= "published";
 
+      // A picked picture forces multipart; without one the body stays JSON so
+      // the translated fields keep their object shape.
+      let body: unknown = payload;
+      if (payload.image instanceof File) {
+        const form = new FormData();
+        for (const [key, item] of Object.entries(payload)) {
+          if (item === null || item === undefined) continue;
+          if (item instanceof File) {
+            form.append(key, item);
+          } else if (typeof item === "object") {
+            form.append(key, JSON.stringify(item));
+          } else {
+            form.append(key, String(item));
+          }
+        }
+        body = form;
+      }
+
       if (isNew) {
-        const { data } = await api.post<VisaType>("/visa-types/", payload);
+        const { data } = await api.post<VisaType>("/visa-types/", body);
         return data;
       }
-      const { data } = await api.patch<VisaType>(`/visa-types/${slug}/`, payload);
+      const { data } = await api.patch<VisaType>(`/visa-types/${slug}/`, body);
       return data;
     },
     onSuccess: (data) => {
@@ -300,6 +324,12 @@ export default function VisaTypeEditor() {
             onChange={(event) => setField("display_order", Number(event.target.value))}
           />
         </div>
+
+        <ImageField
+          value={values.image}
+          error={fieldErrors.image}
+          onChange={(value) => setField("image", value)}
+        />
 
         <label className="flex items-center gap-2.5 text-sm text-ink-700">
           <input
@@ -535,4 +565,65 @@ function handleApiError(
     }
   }
   setFormError(apiErrorMessage(error, "Could not save this visa type."));
+}
+
+/**
+ * The visa's picture, for staff reference in the MIS.
+ *
+ * It is deliberately not shown to applicants: the selection step lists visas
+ * as plain labelled options, so a photograph there would decorate a choice
+ * that should be read.
+ */
+function ImageField({
+  value,
+  error,
+  onChange,
+}: {
+  value: unknown;
+  error?: string;
+  onChange: (value: File | null) => void;
+}) {
+  const picked = value instanceof File ? value : null;
+  const existing = typeof value === "string" ? value : null;
+
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-ink-700">Picture</label>
+
+      {picked ? (
+        <p className="flex items-center gap-2 rounded-lg bg-success-soft px-3 py-2 text-xs text-success">
+          <Check className="size-3.5 shrink-0" aria-hidden />
+          {picked.name} — saved when you press Save.
+        </p>
+      ) : existing ? (
+        <div className="flex items-center gap-3">
+          <img
+            src={mediaUrl(existing)}
+            alt=""
+            className="h-20 w-32 rounded-lg border border-ink-200 object-cover"
+          />
+          <span className="text-xs text-ink-500">
+            Currently in use. Choose a file to replace it.
+          </span>
+        </div>
+      ) : null}
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(event) => onChange(event.target.files?.[0] ?? null)}
+        className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-ink-100 file:px-3 file:py-1.5 file:text-xs file:font-medium"
+      />
+
+      {error ? (
+        <p role="alert" className="text-xs text-danger">
+          {error}
+        </p>
+      ) : (
+        <p className="text-xs text-ink-500">
+          Shown in the MIS only — applicants do not see it.
+        </p>
+      )}
+    </div>
+  );
 }
