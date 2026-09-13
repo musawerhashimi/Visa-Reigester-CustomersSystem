@@ -48,7 +48,6 @@ USERS_CREATE = "users.create"
 USERS_EDIT = "users.edit"
 USERS_DELETE = "users.delete"
 
-SETTINGS_MANAGE = "settings.manage"
 AUDIT_VIEW = "audit.view"
 
 ALL_PERMISSIONS = frozenset(
@@ -73,8 +72,8 @@ _CMS_PERMISSIONS = frozenset(
 # application data unless an admin grants it explicitly.
 _ROLE_PERMISSIONS = {
     "super_admin": ALL_PERMISSIONS,
-    "admin": ALL_PERMISSIONS
-    - {USERS_DELETE, SETTINGS_MANAGE},
+    # An admin runs the business; only removing people is held back.
+    "admin": ALL_PERMISSIONS - {USERS_DELETE},
     "visa_officer": frozenset(
         {
             CUSTOMERS_VIEW,

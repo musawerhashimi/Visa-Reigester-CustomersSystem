@@ -1,4 +1,4 @@
-import { Images, X } from "lucide-react";
+import { Images, Play, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -91,13 +91,30 @@ export default function Gallery() {
                 onClick={() => setLightbox(item)}
                 className="group relative aspect-[4/3] overflow-hidden rounded-xl bg-ink-100"
               >
-                {src && (
+                {src ? (
                   <img
                     src={src}
                     alt={caption}
                     loading="lazy"
                     className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
+                ) : item.kind === "video" && item.video ? (
+                  // A video with no poster: the first frame stands in for one.
+                  <video
+                    src={mediaUrl(item.video)}
+                    muted
+                    preload="metadata"
+                    className="size-full object-cover"
+                  />
+                ) : null}
+
+                {item.kind === "video" && (
+                  <span
+                    className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-brand-950/60 text-white ring-2 ring-white/70 transition-transform group-hover:scale-110"
+                    aria-hidden
+                  >
+                    <Play className="size-5 translate-x-0.5 fill-current" />
+                  </span>
                 )}
                 {caption && (
                   <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-brand-950/80 to-transparent p-3 text-left text-sm font-medium text-white">
@@ -131,11 +148,31 @@ export default function Gallery() {
             className="max-h-full max-w-4xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <img
-              src={mediaUrl(lightbox.image)}
-              alt={translate(lightbox.title)}
-              className="max-h-[80dvh] w-auto rounded-xl object-contain"
-            />
+            {lightbox.kind === "video" ? (
+              lightbox.video ? (
+                <video
+                  src={mediaUrl(lightbox.video)}
+                  poster={mediaUrl(lightbox.image)}
+                  controls
+                  autoPlay
+                  className="max-h-[80dvh] w-auto rounded-xl"
+                />
+              ) : (
+                <iframe
+                  src={embedUrl(lightbox.video_url)}
+                  title={translate(lightbox.title) || "Video"}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="aspect-video max-h-[80dvh] w-[min(56rem,90vw)] rounded-xl border-0"
+                />
+              )
+            ) : (
+              <img
+                src={mediaUrl(lightbox.image)}
+                alt={translate(lightbox.title)}
+                className="max-h-[80dvh] w-auto rounded-xl object-contain"
+              />
+            )}
             {(translate(lightbox.title) || translate(lightbox.description)) && (
               <figcaption className="mt-3 text-center text-sm text-brand-200">
                 {translate(lightbox.title)}
@@ -151,4 +188,23 @@ export default function Gallery() {
       )}
     </>
   );
+}
+
+/**
+ * Turn a YouTube or Vimeo page address into one that can be embedded.
+ *
+ * Staff paste the link from the browser bar, which is a watch page and
+ * refuses to load in a frame; the embed form is what actually plays.
+ */
+function embedUrl(url: string) {
+  const youtube = url.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/,
+  );
+  if (youtube) return `https://www.youtube.com/embed/${youtube[1]}`;
+
+  const vimeo = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+
+  // Anything else is used as given: it may already be an embed address.
+  return url;
 }

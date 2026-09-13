@@ -242,8 +242,28 @@ class CompanyInfoView(APIView):
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
+    #: Mail server details are staff-only. This endpoint is also the public
+    #: About page's source, so they are stripped for everyone else rather
+    #: than trusting the front end not to display them.
+    STAFF_ONLY_FIELDS = (
+        "smtp_host",
+        "smtp_port",
+        "smtp_username",
+        "smtp_password_set",
+        "smtp_use_tls",
+        "smtp_enabled",
+        "sending_email",
+    )
+
     def get(self, request):
-        return Response(CompanyInfoSerializer(CompanyInfo.load()).data)
+        data = CompanyInfoSerializer(CompanyInfo.load()).data
+        user = request.user
+        if not (
+            user.is_authenticated and user.has_perm_slug(perms.CMS_PAGES_MANAGE)
+        ):
+            for field in self.STAFF_ONLY_FIELDS:
+                data.pop(field, None)
+        return Response(data)
 
     def patch(self, request):
         if not request.user.has_perm_slug(perms.CMS_PAGES_MANAGE):
@@ -263,6 +283,56 @@ class CompanyInfoView(APIView):
             request=request,
         )
         return Response(serializer.data)
+
+
+class MailTestView(APIView):
+    """Send one real email, so the office can prove the settings work.
+
+    Without this, a wrong password looks identical to a working setup: every
+    send is caught and logged, so the MIS would report success while nothing
+    arrived. Here the error is returned verbatim instead.
+    """
+
+    def post(self, request):
+        if not request.user.has_perm_slug(perms.CMS_PAGES_MANAGE):
+            raise PermissionDenied("You cannot manage company information.")
+
+        recipient = (request.data.get("email") or request.user.email or "").strip()
+        if not recipient:
+            return Response(
+                {"email": "Enter an address to send the test to."}, status=400
+            )
+
+        from django.core.mail import EmailMessage
+
+        from emails.services import mail_connection, sender_address
+
+        connection = mail_connection()
+        if connection is None:
+            return Response(
+                {
+                    "detail": (
+                        "Saved settings are not in use yet. Turn on "
+                        "“Send through this server” and save first."
+                    )
+                },
+                status=400,
+            )
+
+        try:
+            EmailMessage(
+                subject="VisaCare test email",
+                body="If you are reading this, your mail server works.",
+                from_email=sender_address(),
+                to=[recipient],
+                connection=connection,
+            ).send(fail_silently=False)
+        except Exception as error:
+            # The SMTP message is the useful part ("authentication failed",
+            # "name or service not known"), so it is passed through.
+            return Response({"detail": str(error)}, status=400)
+
+        return Response({"detail": f"Test email sent to {recipient}."})
 
 
 class ContactMessageViewSet(viewsets.ModelViewSet):

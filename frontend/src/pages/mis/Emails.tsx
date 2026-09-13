@@ -1,12 +1,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertTriangle, Check, Mail, Paperclip, Pencil, Search } from "lucide-react";
+import { AlertTriangle, Mail, Paperclip, Pencil, Search } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { useToast } from "@/components/ui/Toast";
 import { api, apiErrorMessage } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { useAuth } from "@/stores/auth";
@@ -265,9 +266,9 @@ function Templates() {
   const queryClient = useQueryClient();
   const hasPermission = useAuth((state) => state.hasPermission);
   const canManage = hasPermission("emails.templates.manage");
+  const { toast } = useToast();
 
   const [editing, setEditing] = useState<EmailTemplate | null>(null);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -290,9 +291,10 @@ function Templates() {
       }),
     onSuccess: () => {
       setError(null);
-      setSaved(true);
+      // Closing the editor returns you to the template list; the toast is what
+      // reports the save from there.
       setEditing(null);
-      setTimeout(() => setSaved(false), 2500);
+      toast("Template saved.");
       void queryClient.invalidateQueries({ queryKey: ["mis", "email-templates"] });
     },
     onError: (err) => setError(apiErrorMessage(err, "Could not save the template.")),
@@ -391,13 +393,6 @@ function Templates() {
 
   return (
     <div>
-      {saved && (
-        <p className="mx-5 mt-4 inline-flex items-center gap-1.5 rounded-lg bg-success-soft px-3 py-2 text-sm text-success">
-          <Check className="size-4" aria-hidden />
-          Template saved
-        </p>
-      )}
-
       <ul className="divide-y divide-ink-100">
         {data?.map((template) => (
           <li key={template.id} className="flex flex-wrap items-center gap-3 px-5 py-4">

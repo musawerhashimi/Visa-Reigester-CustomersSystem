@@ -20,6 +20,32 @@ class CompanyInfo(TimeStampedModel):
     address = models.TextField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
+
+    #: The address automatic mail is sent from. Blank falls back to
+    #: DEFAULT_FROM_EMAIL, so an empty database keeps the old behaviour.
+    sending_email = models.EmailField(blank=True)
+
+    #: Mail server, set from the MIS. Each field falls back to its environment
+    #: variable when blank, so an install configured the old way keeps working
+    #: and the UI can take over one field at a time.
+    smtp_host = models.CharField(max_length=200, blank=True)
+    smtp_port = models.PositiveIntegerField(null=True, blank=True)
+    smtp_username = models.CharField(max_length=200, blank=True)
+    #: Encrypted at rest (core.encryption); never returned by the API.
+    smtp_password_encrypted = models.TextField(blank=True)
+    smtp_use_tls = models.BooleanField(default=True)
+    #: While false the console backend is used and nothing is delivered.
+    smtp_enabled = models.BooleanField(default=False)
+
+    def set_smtp_password(self, raw):
+        from core.encryption import encrypt
+
+        self.smtp_password_encrypted = encrypt(raw or "")
+
+    def get_smtp_password(self):
+        from core.encryption import decrypt
+
+        return decrypt(self.smtp_password_encrypted)
     website = models.URLField(blank=True)
     social_links = models.JSONField(default=dict, blank=True)
 
@@ -134,9 +160,21 @@ class GalleryItem(PublishableModel):
         COMPANY = "company", "Company"
         OTHER = "other", "Other"
 
+    class Kind(models.TextChoices):
+        IMAGE = "image", "Photo"
+        VIDEO = "video", "Video"
+
     title = TranslatedField(blank=True)
     description = TranslatedField(blank=True)
-    image = models.ImageField(upload_to="gallery/")
+
+    #: Photos use this directly; videos use it as the poster frame, so a
+    #: video tile still shows something before it plays.
+    image = models.ImageField(upload_to="gallery/", blank=True, null=True)
+
+    #: A video is either uploaded here or embedded from `video_url`.
+    video = models.FileField(upload_to="gallery/videos/", blank=True, null=True)
+    video_url = models.URLField(max_length=500, blank=True)
+
     category = models.CharField(
         max_length=20, choices=Category.choices, default=Category.OTHER, db_index=True
     )
@@ -147,6 +185,13 @@ class GalleryItem(PublishableModel):
 
     def __str__(self):
         return translate(self.title) or f"Gallery item {self.pk}"
+
+    @property
+    def kind(self):
+        """What this item actually is, so the site knows how to render it."""
+        if self.video or self.video_url:
+            return self.Kind.VIDEO
+        return self.Kind.IMAGE
 
 
 class FAQ(PublishableModel):

@@ -27,7 +27,7 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   faqs: HelpCircle,
   testimonials: MessageSquareQuote,
   team: Users,
-  pages: FileText,
+  gallery: Images,
 };
 
 export default function CMSHome() {
@@ -112,22 +112,6 @@ export default function CMSHome() {
         })}
       </div>
 
-      {hasPermission("cms.gallery.manage") && (
-        <Link
-          to="/mis/cms/gallery"
-          className="card flex items-center gap-3 p-5 transition-shadow hover:shadow-lifted"
-        >
-          <span className="grid size-10 place-items-center rounded-xl bg-brand-50 text-brand-600">
-            <Images className="size-5" />
-          </span>
-          <div>
-            <h2 className="text-base font-semibold text-ink-900">Gallery</h2>
-            <p className="text-xs text-ink-500">
-              Photographs shown across the public site.
-            </p>
-          </div>
-        </Link>
-      )}
     </div>
   );
 }

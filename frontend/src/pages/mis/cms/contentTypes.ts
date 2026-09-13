@@ -8,7 +8,16 @@ import type { Translated } from "@/types/domain";
  * eleven near-identical pages that drift apart.
  */
 
-export type FieldKind = "text" | "textarea" | "plain" | "date" | "datetime" | "number";
+export type FieldKind =
+  | "text"
+  | "textarea"
+  | "plain"
+  | "date"
+  | "datetime"
+  | "number"
+  | "image"
+  | "video"
+  | "select";
 
 export interface ContentField {
   name: string;
@@ -19,6 +28,19 @@ export interface ContentField {
   required?: boolean;
   hint?: string;
   rows?: number;
+  /** Choices for a "select" field. */
+  options?: { value: string; label: string }[];
+  /**
+   * A form-only control that steers the fields below it. It is never sent to
+   * the API.
+   */
+  local?: boolean;
+  /** Show this field only while another field holds a given value. */
+  showWhen?: { field: string; equals: string };
+  /** Swap the label based on another field's value. */
+  labelWhen?: { field: string; is: Record<string, string> };
+  /** Swap the hint based on another field's value. */
+  hintWhen?: { field: string; is: Record<string, string> };
 }
 
 export interface ContentTypeConfig {
@@ -53,6 +75,7 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
       { name: "content", label: "Article", kind: "textarea", translated: true, rows: 10 },
       { name: "author", label: "Author", kind: "plain" },
       { name: "category", label: "Category", kind: "plain" },
+      { name: "featured_image", label: "Picture", kind: "image", hint: "Shown on the news list and at the top of the article." },
     ],
   },
   {
@@ -71,6 +94,7 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
       { name: "end_date", label: "Ends", kind: "datetime" },
       { name: "location", label: "Location", kind: "text", translated: true },
       { name: "registration_info", label: "Registration information", kind: "textarea", translated: true, rows: 3 },
+      { name: "image", label: "Picture", kind: "image" },
     ],
   },
   {
@@ -89,6 +113,72 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
       { name: "date", label: "Date", kind: "date" },
       { name: "location", label: "Location", kind: "text", translated: true },
       { name: "category", label: "Category", kind: "plain" },
+      { name: "cover_image", label: "Cover picture", kind: "image" },
+    ],
+  },
+  {
+    key: "gallery",
+    endpoint: "gallery",
+    label: "Gallery",
+    singular: "Gallery item",
+    lookup: "id",
+    titleField: "title",
+    permission: "cms.gallery.manage",
+    fields: [
+      { name: "title", label: "Title", kind: "text", translated: true },
+      { name: "description", label: "Description", kind: "textarea", translated: true, rows: 3 },
+      {
+        name: "category",
+        label: "Category",
+        kind: "select",
+        options: [
+          { value: "events", label: "Events" },
+          { value: "office", label: "Office" },
+          { value: "activities", label: "Activities" },
+          { value: "customers", label: "Customers" },
+          { value: "company", label: "Company" },
+          { value: "other", label: "Other" },
+        ],
+      },
+      {
+        // Not a model field — it decides which of the media fields below are
+        // shown, so a photo and a video cannot be filled in at once. The
+        // editor strips it from the payload before saving.
+        name: "media_kind",
+        label: "This item is a",
+        kind: "select",
+        local: true,
+        options: [
+          { value: "image", label: "Photo" },
+          { value: "video", label: "Video" },
+        ],
+      },
+      {
+        name: "image",
+        label: "Photo",
+        kind: "image",
+        // A video reuses this field as its poster frame, so the wording
+        // follows whichever kind is selected.
+        labelWhen: { field: "media_kind", is: { video: "Poster picture" } },
+        hintWhen: {
+          field: "media_kind",
+          is: { video: "Optional. The still shown before the video plays." },
+        },
+      },
+      {
+        name: "video",
+        label: "Video file",
+        kind: "video",
+        hint: "MP4 or WebM. Leave empty if you are using a link below.",
+        showWhen: { field: "media_kind", equals: "video" },
+      },
+      {
+        name: "video_url",
+        label: "Video link",
+        kind: "plain",
+        hint: "A YouTube or Vimeo address, instead of uploading a file.",
+        showWhen: { field: "media_kind", equals: "video" },
+      },
     ],
   },
   {
@@ -107,6 +197,7 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
       { name: "processing_info", label: "Processing information", kind: "textarea", translated: true, rows: 3 },
       { name: "estimated_time", label: "Estimated time", kind: "text", translated: true },
       { name: "fee_info", label: "Fee information", kind: "text", translated: true },
+      { name: "image", label: "Picture", kind: "image" },
     ],
   },
   {
@@ -136,6 +227,7 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
       { name: "content", label: "Testimonial", kind: "textarea", translated: true, required: true, rows: 4 },
       { name: "role", label: "Role", kind: "text", translated: true },
       { name: "rating", label: "Rating (1-5)", kind: "number" },
+      { name: "photo", label: "Photo", kind: "image" },
     ],
   },
   {
@@ -150,23 +242,13 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
       { name: "name", label: "Name", kind: "plain", required: true },
       { name: "position", label: "Position", kind: "text", translated: true },
       { name: "bio", label: "Biography", kind: "textarea", translated: true, rows: 5 },
+      { name: "photo", label: "Photo", kind: "image" },
     ],
   },
-  {
-    key: "pages",
-    endpoint: "pages",
-    label: "Pages",
-    singular: "Page",
-    lookup: "slug",
-    titleField: "title",
-    permission: "cms.pages.manage",
-    fields: [
-      { name: "slug", label: "URL slug", kind: "plain", required: true },
-      { name: "title", label: "Title", kind: "text", translated: true, required: true },
-      { name: "content", label: "Content", kind: "textarea", translated: true, rows: 12 },
-      { name: "meta_description", label: "Meta description", kind: "textarea", translated: true, rows: 2, hint: "Shown in search results." },
-    ],
-  },
+  // "Pages" — the free-form CMS page type — is deliberately absent. The API
+  // (/api/cms/pages/) and the model still exist, but the public site has no
+  // route that renders a page by slug, so anything written here could never
+  // be seen. Restore this entry alongside that route, not before it.
 ];
 
 export const CONTENT_TYPE_BY_KEY = new Map(

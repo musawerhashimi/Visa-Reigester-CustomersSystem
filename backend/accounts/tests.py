@@ -80,7 +80,7 @@ class AccountAdministrationTests(TestCase):
             row for row in response.data["results"] if row["email"] == "officer@acct.test"
         )
         self.assertIn("documents.verify", officer["effective_permissions"])
-        self.assertNotIn("settings.manage", officer["effective_permissions"])
+        self.assertNotIn("users.create", officer["effective_permissions"])
 
     # --- creation ---------------------------------------------------------
 

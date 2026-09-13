@@ -1,11 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Eye, EyeOff, FileText, Languages, Plus, Trash2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  FileText,
+  ImageOff,
+  Languages,
+  Play,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
 import { Badge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { api, apiErrorMessage } from "@/lib/api";
+import { mediaUrl } from "@/lib/cms";
 import { useAuth } from "@/stores/auth";
 import type { Paginated } from "@/types/domain";
 
@@ -13,6 +23,7 @@ import {
   CONTENT_TYPE_BY_KEY,
   recordTitle,
   type ContentRecord,
+  type ContentTypeConfig,
 } from "./contentTypes";
 
 export default function ContentList() {
@@ -117,6 +128,8 @@ export default function ContentList() {
                 key={record.id}
                 className="flex flex-wrap items-center gap-3 px-5 py-4 transition-colors hover:bg-ink-50"
               >
+                <Thumbnail record={record} config={config} />
+
                 <div className="min-w-0 flex-1">
                   <Link
                     to={`/mis/cms/${config.key}/${lookupValue(record, config.lookup)}`}
@@ -194,6 +207,50 @@ export default function ContentList() {
         public site.
       </p>
     </div>
+  );
+}
+
+/**
+ * The row's picture, for the types that carry one.
+ *
+ * A gallery of photographs listed as bare filenames is unreadable — you
+ * recognise the picture, not the title someone typed. Types with no image
+ * field render nothing at all, so a text-only list keeps its layout.
+ */
+function Thumbnail({
+  record,
+  config,
+}: {
+  record: ContentRecord;
+  config: ContentTypeConfig;
+}) {
+  const imageField = config.fields.find((field) => field.kind === "image");
+  if (!imageField) return null;
+
+  const source = mediaUrl(record[imageField.name] as string | null | undefined);
+  const isVideo = Boolean(record.video || record.video_url);
+
+  return (
+    <Link
+      to={`/mis/cms/${config.key}/${lookupValue(record, config.lookup)}`}
+      className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-ink-100"
+      // The title beside it is the real link; this is decoration.
+      tabIndex={-1}
+      aria-hidden
+    >
+      {source ? (
+        <img src={source} alt="" className="size-full object-cover" />
+      ) : (
+        <span className="grid size-full place-items-center text-ink-400">
+          <ImageOff className="size-4" aria-hidden />
+        </span>
+      )}
+      {isVideo && (
+        <span className="absolute inset-0 grid place-items-center bg-ink-900/40 text-white">
+          <Play className="size-4 fill-current" aria-hidden />
+        </span>
+      )}
+    </Link>
   );
 }
 

@@ -7,6 +7,7 @@ import { TranslatedInput } from "@/components/cms/TranslatedInput";
 import { Badge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { useToast } from "@/components/ui/Toast";
 import { api, apiErrorMessage } from "@/lib/api";
 import { translate } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
@@ -42,12 +43,12 @@ export default function VisaTypeEditor() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canManage = useAuth((state) => state.hasPermission)("visas.manage");
+  const { toast } = useToast();
   const isNew = slug === "new";
 
   const [values, setValues] = useState<Values>({ fee_currency: "EUR" });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const { data: record, isLoading } = useQuery({
     queryKey: ["visa-catalogue", "visa-types", slug],
@@ -104,7 +105,9 @@ export default function VisaTypeEditor() {
       // Empty strings mean "not set" for these; the API wants null.
       if (!payload.category_id) payload.category_id = null;
       if (payload.fee_amount === "") payload.fee_amount = null;
-      payload.status ??= "draft";
+      // The Status field above is explicit; it only needs a default when a new
+      // type is saved without touching it, and that default is live.
+      payload.status ??= "published";
 
       if (isNew) {
         const { data } = await api.post<VisaType>("/visa-types/", payload);
@@ -116,14 +119,20 @@ export default function VisaTypeEditor() {
     onSuccess: (data) => {
       setFieldErrors({});
       setFormError(null);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
       void queryClient.invalidateQueries({ queryKey: ["visa-catalogue"] });
       // The applicant's form reads this list too, so drop its cache.
       void queryClient.invalidateQueries({ queryKey: ["visa-types"] });
-      if (isNew || data.slug !== slug) {
+
+      if (isNew) {
+        // A new visa type is only half-configured: its required documents are
+        // added from the panel that appears once it exists. So stay here and
+        // point at that next step rather than returning to the list.
+        toast("Visa type created. Add its required documents below.");
         navigate(`/mis/visas/types/${data.slug}`, { replace: true });
+        return;
       }
+      toast("Visa type saved.");
+      navigate("/mis/visas/types");
     },
     onError: (error) => handleApiError(error, setFieldErrors, setFormError),
   });
@@ -152,7 +161,7 @@ export default function VisaTypeEditor() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <Link
         to="/mis/visas/types"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-800"
@@ -273,7 +282,7 @@ export default function VisaTypeEditor() {
             label="Status"
             hint="Only published types appear on the application form."
             error={fieldErrors.status}
-            value={(values.status as string) ?? "draft"}
+            value={(values.status as string) ?? "published"}
             onChange={(value) => setField("status", value)}
             options={[
               { value: "draft", label: "Draft" },
@@ -306,12 +315,6 @@ export default function VisaTypeEditor() {
           <Button type="submit" icon={<Save className="size-4" />} loading={save.isPending}>
             {isNew ? "Create" : "Save changes"}
           </Button>
-          {saved && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-success">
-              <Check className="size-4" aria-hidden />
-              Saved
-            </span>
-          )}
           <p className="ml-auto text-xs text-ink-500">
             {isPublished
               ? "Offered on the application form."

@@ -8,7 +8,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { tokenStore } from "./api";
+import { api, tokenStore } from "./api";
 
 const ACCESS_KEY = "visacrm.access";
 const REFRESH_KEY = "visacrm.refresh";
@@ -59,5 +59,53 @@ describe("tokenStore", () => {
 
     expect(tokenStore.access).toBe("second-access");
     expect(tokenStore.refresh).toBe("the-refresh");
+  });
+});
+
+/**
+ * File uploads must not be labelled as JSON.
+ *
+ * The client sets a JSON Content-Type by default, which would override the
+ * multipart type axios generates for FormData — leaving the server with a
+ * body it cannot find a file in ("The submitted data was not a file").
+ */
+describe("request content type", () => {
+  async function sentHeaders(data: unknown) {
+    // A stub adapter sees the headers after every interceptor has run, which
+    // an interceptor of our own would not: axios runs those in reverse order.
+    const original = api.defaults.adapter;
+    let captured: Record<string, unknown> = {};
+    api.defaults.adapter = async (config) => {
+      captured = { ...config.headers };
+      return {
+        data: {},
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        config,
+      };
+    };
+
+    await api.post("/probe/", data).catch(() => undefined);
+    api.defaults.adapter = original;
+    return captured;
+  }
+
+  it("never labels FormData as JSON", async () => {
+    const form = new FormData();
+    form.append("featured_image", new Blob(["x"]), "picture.png");
+
+    const headers = await sentHeaders(form);
+
+    // The exact value is chosen by axios per environment (and carries the
+    // boundary in a browser); what matters is that the JSON default no
+    // longer wins, which is what stripped the file from the request.
+    expect(headers["Content-Type"]).not.toBe("application/json");
+  });
+
+  it("still sends plain objects as JSON", async () => {
+    const headers = await sentHeaders({ title: "An article" });
+
+    expect(headers["Content-Type"]).toBe("application/json");
   });
 });

@@ -28,6 +28,8 @@ export default function Login() {
   const {
     register,
     handleSubmit,
+    resetField,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
@@ -42,6 +44,12 @@ export default function Login() {
       navigate(next ?? fallback, { replace: true });
     } catch (error) {
       setFormError(apiErrorMessage(error, "Could not sign you in."));
+      // The server answers a bad sign-in with one generic error and never
+      // says which field was wrong, so only the password is cleared: the
+      // email is almost always right, and wiping it means retyping it on
+      // every attempt.
+      resetField("password");
+      setFocus("password");
     }
   }
 

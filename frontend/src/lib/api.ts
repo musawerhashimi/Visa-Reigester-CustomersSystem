@@ -65,6 +65,13 @@ export const api = axios.create({
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStore.access;
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  // File uploads must carry multipart/form-data plus the boundary axios
+  // generates. The JSON default above would otherwise mislabel the body and
+  // the server would find no file in it.
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
   return config;
 });
 

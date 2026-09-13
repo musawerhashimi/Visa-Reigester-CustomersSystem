@@ -442,3 +442,41 @@ class EmailTemplateTests(TestCase):
 
         self.assertIn("customer_name", response.data["available_variables"])
         self.assertIn("application_id", response.data["available_variables"])
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="noreply@server.test",
+)
+class SendingAddressTests(TestCase):
+    """The office sets the From address in the MIS; the environment is the
+    fallback, so an unconfigured install keeps working."""
+
+    def setUp(self):
+        from cms.models import CompanyInfo
+
+        self.info = CompanyInfo.load()
+
+    def _send(self):
+        from emails import services
+
+        return services.send_email(
+            to_email="customer@example.com", subject="Hi", body="Body"
+        )
+
+    def test_a_blank_setting_falls_back_to_the_environment(self):
+        self.info.sending_email = ""
+        self.info.save()
+
+        self._send()
+
+        self.assertEqual(mail.outbox[-1].from_email, "noreply@server.test")
+
+    def test_a_configured_address_is_used_as_the_sender(self):
+        self.info.sending_email = "office@visacare.test"
+        self.info.save()
+
+        log = self._send()
+
+        self.assertEqual(log.status, "sent")
+        self.assertEqual(mail.outbox[-1].from_email, "office@visacare.test")

@@ -3,9 +3,11 @@ import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { MISLayout } from "@/components/mis/MISLayout";
 import { PortalLayout } from "@/components/portal/PortalLayout";
 import { RequireAuth } from "@/components/RequireAuth";
+import { ToastProvider } from "@/components/ui/Toast";
 import { useAuth } from "@/stores/auth";
 import type { UserRole } from "@/types/domain";
 
@@ -93,7 +95,9 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <ToastProvider>
+        <BrowserRouter>
+          <ScrollToTop />
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route element={<PublicLayout />}>
@@ -157,7 +161,8 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
-      </BrowserRouter>
+        </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

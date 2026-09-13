@@ -1,5 +1,5 @@
-import { Menu, Plane, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, Menu, Plane, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
@@ -10,16 +10,27 @@ import { useAuth } from "@/stores/auth";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { UserMenu } from "./UserMenu";
 
-const LINKS = [
+interface NavLinkItem {
+  to: string;
+  key: string;
+  end?: boolean;
+  /** Pages that belong under this one, shown as a dropdown. */
+  children?: { to: string; key: string }[];
+}
+
+const LINKS: NavLinkItem[] = [
   { to: "/", key: "nav.home", end: true },
   { to: "/about", key: "nav.about" },
-  { to: "/services", key: "nav.services" },
-  { to: "/visas", key: "nav.visaServices" },
+  {
+    to: "/services",
+    key: "nav.services",
+    children: [{ to: "/visas", key: "nav.visaServices" }],
+  },
   { to: "/activities", key: "nav.activities" },
   { to: "/news", key: "nav.news" },
   { to: "/gallery", key: "nav.gallery" },
   { to: "/contact", key: "nav.contact" },
-] as const;
+];
 
 export function PublicHeader() {
   const { t } = useTranslation();
@@ -59,24 +70,28 @@ export function PublicHeader() {
           </span>
         </Link>
 
-        <nav className="scroll-slim ml-4 hidden items-center gap-0.5 overflow-x-auto lg:flex">
-          {LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={"end" in link ? link.end : undefined}
-              className={({ isActive }) =>
-                cn(
-                  "whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-brand-50 text-brand-700"
-                    : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
-                )
-              }
-            >
-              {t(link.key)}
-            </NavLink>
-          ))}
+        <nav className="ml-4 hidden items-center gap-0.5 lg:flex">
+          {LINKS.map((link) =>
+            link.children ? (
+              <DesktopMenu key={link.to} link={link} />
+            ) : (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.end}
+                className={({ isActive }) =>
+                  cn(
+                    "whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-brand-50 text-brand-700"
+                      : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
+                  )
+                }
+              >
+                {t(link.key)}
+              </NavLink>
+            ),
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -114,21 +129,41 @@ export function PublicHeader() {
         <div className="border-t border-ink-200 bg-white lg:hidden">
           <nav className="mx-auto max-w-7xl space-y-0.5 px-4 py-3 sm:px-6">
             {LINKS.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={"end" in link ? link.end : undefined}
-                className={({ isActive }) =>
-                  cn(
-                    "block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-brand-50 text-brand-700"
-                      : "text-ink-700 hover:bg-ink-100",
-                  )
-                }
-              >
-                {t(link.key)}
-              </NavLink>
+              <div key={link.to}>
+                <NavLink
+                  to={link.to}
+                  end={link.end}
+                  className={({ isActive }) =>
+                    cn(
+                      "block rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-brand-50 text-brand-700"
+                        : "text-ink-700 hover:bg-ink-100",
+                    )
+                  }
+                >
+                  {t(link.key)}
+                </NavLink>
+
+                {/* Indented rather than collapsed: with one sub-item a
+                    disclosure would cost a tap and hide the page. */}
+                {link.children?.map((child) => (
+                  <NavLink
+                    key={child.to}
+                    to={child.to}
+                    className={({ isActive }) =>
+                      cn(
+                        "block rounded-lg py-2.5 pl-7 pr-3 text-sm transition-colors",
+                        isActive
+                          ? "bg-brand-50 font-medium text-brand-700"
+                          : "text-ink-600 hover:bg-ink-100",
+                      )
+                    }
+                  >
+                    {t(child.key)}
+                  </NavLink>
+                ))}
+              </div>
             ))}
 
             <div className="flex items-center gap-2 border-t border-ink-200 pt-3">
@@ -154,5 +189,96 @@ export function PublicHeader() {
         </div>
       )}
     </header>
+  );
+}
+
+/**
+ * A top-level page that also lists the pages beneath it.
+ *
+ * The parent stays a real link — Services is a page in its own right — so the
+ * dropdown opens on hover and on focus rather than swallowing the click.
+ */
+function DesktopMenu({ link }: { link: NavLinkItem }) {
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const isActive =
+    pathname === link.to ||
+    (link.children ?? []).some((child) => pathname === child.to);
+
+  // A small delay stops the menu snapping shut while the pointer crosses the
+  // gap between the trigger and the panel.
+  function scheduleClose() {
+    clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  }
+
+  function cancelClose() {
+    clearTimeout(closeTimer.current);
+    setOpen(true);
+  }
+
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
+  useEffect(() => setOpen(false), [pathname]);
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={cancelClose}
+      onMouseLeave={scheduleClose}
+      onFocus={cancelClose}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <NavLink
+        to={link.to}
+        end={link.end}
+        aria-expanded={open}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+        className={cn(
+          "flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          isActive
+            ? "bg-brand-50 text-brand-700"
+            : "text-ink-600 hover:bg-ink-100 hover:text-ink-900",
+        )}
+      >
+        {t(link.key)}
+        <ChevronDown
+          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+      </NavLink>
+
+      {open && (
+        <div className="absolute left-0 top-full z-50 min-w-52 pt-1.5">
+          <ul className="overflow-hidden rounded-xl border border-ink-200 bg-white py-1 shadow-lifted">
+            {link.children?.map((child) => (
+              <li key={child.to}>
+                <NavLink
+                  to={child.to}
+                  className={({ isActive: childActive }) =>
+                    cn(
+                      "block px-4 py-2.5 text-sm transition-colors",
+                      childActive
+                        ? "bg-brand-50 font-medium text-brand-700"
+                        : "text-ink-700 hover:bg-ink-50",
+                    )
+                  }
+                >
+                  {t(child.key)}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }

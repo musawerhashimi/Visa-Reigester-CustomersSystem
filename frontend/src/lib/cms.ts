@@ -63,7 +63,14 @@ export interface ServiceItem extends PublicContent {
 export interface GalleryImage extends PublicContent {
   title: Translated;
   description: Translated;
-  image: string;
+  /** For a video this is the poster frame, and may be empty. */
+  image: string | null;
+  /** An uploaded video file, if this entry is one. */
+  video: string | null;
+  /** A YouTube or Vimeo address, as an alternative to uploading. */
+  video_url: string;
+  /** What the server says this is, so the tile knows how to render. */
+  kind: "image" | "video";
   category: string;
   is_featured: boolean;
 }
@@ -102,6 +109,16 @@ export interface CompanyInfo {
   address: string;
   phone: string;
   email: string;
+  /** From address for automatic mail; blank uses the server default. */
+  sending_email: string;
+  /** Mail server, staff-only: absent from the public response. */
+  smtp_host?: string;
+  smtp_port?: number | null;
+  smtp_username?: string;
+  /** True when a password is stored. The value itself is never returned. */
+  smtp_password_set?: boolean;
+  smtp_use_tls?: boolean;
+  smtp_enabled?: boolean;
   website: string;
   social_links: Record<string, string>;
 }

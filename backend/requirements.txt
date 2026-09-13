@@ -11,3 +11,5 @@ daphne==4.1.2
 channels-redis==4.2.0
 drf-spectacular==0.27.2
 reportlab==5.0.1
+# Encrypts the SMTP password before it is stored (core/encryption.py).
+cryptography==50.0.1

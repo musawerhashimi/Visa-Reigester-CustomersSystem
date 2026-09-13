@@ -97,6 +97,39 @@ class CompanyInfoSerializer(TranslatedFieldMixin, serializers.ModelSerializer):
     )
     required_english = ("name",)
 
+    #: Accepted but never returned. Sending the stored password back to the
+    #: browser would undo the point of encrypting it.
+    smtp_password = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, style={"input_type": "password"}
+    )
+    #: Lets the form show "set" without revealing anything.
+    smtp_password_set = serializers.SerializerMethodField()
+
+    def get_smtp_password_set(self, obj):
+        return bool(obj.smtp_password_encrypted)
+
+    def update(self, instance, validated_data):
+        # An omitted password keeps the stored one; an explicit "" clears it.
+        password = validated_data.pop("smtp_password", None)
+        instance = super().update(instance, validated_data)
+        if password is not None:
+            instance.set_smtp_password(password)
+            instance.save(update_fields=["smtp_password_encrypted", "updated_at"])
+        return instance
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        # Turning delivery on with no host would fail silently on every send.
+        enabled = attrs.get("smtp_enabled", getattr(self.instance, "smtp_enabled", False))
+        if enabled:
+            host = attrs.get("smtp_host", getattr(self.instance, "smtp_host", ""))
+            if not host:
+                raise serializers.ValidationError(
+                    {"smtp_host": "A mail server is required to send email."}
+                )
+        return attrs
+
     class Meta:
         model = CompanyInfo
         fields = (
@@ -112,11 +145,19 @@ class CompanyInfoSerializer(TranslatedFieldMixin, serializers.ModelSerializer):
             "address",
             "phone",
             "email",
+            "sending_email",
+            "smtp_host",
+            "smtp_port",
+            "smtp_username",
+            "smtp_password",
+            "smtp_password_set",
+            "smtp_use_tls",
+            "smtp_enabled",
             "website",
             "social_links",
             "updated_at",
         )
-        read_only_fields = ("updated_at",)
+        read_only_fields = ("updated_at", "smtp_password_set")
 
 
 class BaseContentSerializer(
@@ -261,6 +302,9 @@ class EventSerializer(BaseContentSerializer):
 class GalleryItemSerializer(BaseContentSerializer):
     translated_fields = ("title", "description")
 
+    #: Whether the site should render this as a photo or a video.
+    kind = serializers.CharField(read_only=True)
+
     class Meta(BaseContentSerializer.Meta):
         model = GalleryItem
         fields = (
@@ -268,6 +312,9 @@ class GalleryItemSerializer(BaseContentSerializer):
             "title",
             "description",
             "image",
+            "video",
+            "video_url",
+            "kind",
             "category",
             "is_featured",
             "status",
@@ -277,6 +324,33 @@ class GalleryItemSerializer(BaseContentSerializer):
             "created_at",
             "updated_at",
         )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        def value(name):
+            if name in attrs:
+                return attrs[name]
+            return getattr(self.instance, name, None)
+
+        # An entry with no photo, no upload and no link would render as an
+        # empty tile on the public gallery.
+        if not (value("image") or value("video") or value("video_url")):
+            raise serializers.ValidationError(
+                {"image": "Add a photo, a video file, or a video link."}
+            )
+
+        # An uploaded file and an embedded link are two different videos, and
+        # `kind` cannot say which one the tile should play.
+        if value("video") and value("video_url"):
+            raise serializers.ValidationError(
+                {
+                    "video": (
+                        "Use either a video file or a video link, not both."
+                    )
+                }
+            )
+        return attrs
 
 
 class FAQSerializer(BaseContentSerializer):

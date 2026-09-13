@@ -71,6 +71,52 @@ def render(text, context):
     )
 
 
+def _company():
+    """The settings row, or None before the table exists or is populated."""
+    from cms.models import CompanyInfo
+
+    try:
+        return CompanyInfo.objects.first()
+    except Exception:  # pragma: no cover - table missing during early migrate
+        return None
+
+
+def sender_address():
+    """The From address for outgoing mail.
+
+    The office sets this in the MIS so customers see a real address rather
+    than the server's default; anything unset falls back to the environment.
+    """
+    info = _company()
+    return (info.sending_email if info else "") or settings.DEFAULT_FROM_EMAIL
+
+
+def mail_connection():
+    """A connection built from the mail server saved in the MIS.
+
+    Returns None when the office has not enabled SMTP there, which leaves
+    Django to use EMAIL_BACKEND as configured in the environment — so an
+    install that was set up the old way is untouched.
+    """
+    from django.core.mail import get_connection
+
+    info = _company()
+    if not info or not info.smtp_enabled or not info.smtp_host:
+        return None
+
+    return get_connection(
+        backend="django.core.mail.backends.smtp.EmailBackend",
+        host=info.smtp_host,
+        port=info.smtp_port or 587,
+        username=info.smtp_username,
+        password=info.get_smtp_password(),
+        use_tls=info.smtp_use_tls,
+        # Django rejects having both on, and the pairing is conventional:
+        # 587 with STARTTLS, 465 with implicit SSL.
+        use_ssl=not info.smtp_use_tls and (info.smtp_port == 465),
+    )
+
+
 def send_email(
     *,
     to_email,
@@ -107,9 +153,10 @@ def send_email(
         message = EmailMessage(
             subject=subject,
             body=body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=sender_address(),
             to=[to_email],
             cc=cc or None,
+            connection=mail_connection(),
         )
         for attachment in attachments or []:
             message.attach(
