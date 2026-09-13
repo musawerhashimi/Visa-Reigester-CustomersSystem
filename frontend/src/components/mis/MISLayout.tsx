@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Globe,
   BarChart3,
+  ShieldCheck,
   LogOut,
   Mail,
   Menu,
@@ -31,6 +32,7 @@ const NAV = [
   { to: "/mis/emails", label: "Emails", icon: Mail, permission: "emails.send" },
   { to: "/mis/reports", label: "Reports", icon: BarChart3, permission: "reports.view" },
   { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },
+  { to: "/mis/accounts", label: "Users & Accounts", icon: ShieldCheck, permission: "users.view" },
   { to: "/mis/settings", label: "Settings", icon: Settings, permission: "settings.manage" },
 ] as const;
 
