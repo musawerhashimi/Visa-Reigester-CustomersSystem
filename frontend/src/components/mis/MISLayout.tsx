@@ -1,9 +1,10 @@
 import {
+  BarChart3,
+  Building2,
   FileText,
   FolderOpen,
   LayoutDashboard,
   Globe,
-  BarChart3,
   ShieldCheck,
   LogOut,
   Mail,
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/mis/visas", label: "Visa types", icon: Plane, permission: "visas.manage" },
   { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },
   { to: "/mis/accounts", label: "Users & Accounts", icon: ShieldCheck, permission: "users.view" },
+  { to: "/mis/branches", label: "Branches", icon: Building2, permission: "branches.view" },
   { to: "/mis/settings", label: "Settings", icon: Settings, permission: "cms.pages.manage" },
 ] as const;
 

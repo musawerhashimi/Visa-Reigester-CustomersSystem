@@ -59,6 +59,17 @@ class User(AbstractUser, TimeStampedModel):
         max_length=20, choices=Role.choices, default=Role.CUSTOMER, db_index=True
     )
 
+    # The office a staff member works out of. Staff in the general branch see
+    # every branch's work; staff elsewhere see only their own. Customers are
+    # not tied to a branch — they choose one per application instead.
+    branch = models.ForeignKey(
+        "branches.Branch",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="users",
+    )
+
     first_name = models.CharField(max_length=100, blank=True)
     last_name = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=30, blank=True, db_index=True)
@@ -82,6 +93,16 @@ class User(AbstractUser, TimeStampedModel):
     def __str__(self):
         return f"{self.get_full_name() or self.email} ({self.get_role_display()})"
 
+    def save(self, *args, **kwargs):
+        if self.branch_id is None and self.role != self.Role.CUSTOMER:
+            # A staff account with no branch would see nothing at all, so one
+            # made outside the admin form — createsuperuser, a shell, a
+            # fixture — joins the head office rather than starting blind.
+            from branches.models import Branch
+
+            self.branch = Branch.general()
+        super().save(*args, **kwargs)
+
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
 
@@ -92,6 +113,15 @@ class User(AbstractUser, TimeStampedModel):
     @property
     def is_mis_user(self):
         return self.role != self.Role.CUSTOMER
+
+    @property
+    def sees_all_branches(self):
+        """Staff in the general branch work across every branch."""
+        return (
+            self.is_mis_user
+            and self.branch_id is not None
+            and self.branch.is_general
+        )
 
     @property
     def email_verified(self):

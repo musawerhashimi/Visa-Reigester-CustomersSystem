@@ -15,6 +15,32 @@ export type UserRole =
   | "cms_manager"
   | "customer";
 
+/** An office. Staff in the general branch see every branch's work. */
+export interface Branch {
+  id: number;
+  name: string;
+  code: string;
+  is_general: boolean;
+  city: string;
+  country: string;
+  address: string;
+  phone: string;
+  email: string;
+  is_active: boolean;
+  application_count: number;
+  staff_count: number;
+  created_at: string;
+}
+
+/** Branch identity as nested inside users and applications. */
+export type BranchBrief = Pick<Branch, "id" | "name" | "code" | "is_general">;
+
+/** What an applicant sees when choosing where to apply. */
+export type PublicBranch = Pick<
+  Branch,
+  "id" | "name" | "code" | "city" | "country" | "address" | "phone"
+>;
+
 export interface User {
   id: number;
   email: string;
@@ -23,6 +49,10 @@ export interface User {
   full_name: string;
   phone: string;
   role: UserRole;
+  /** Null for customers, who are not tied to an office. */
+  branch: BranchBrief | null;
+  /** True when this user works out of the general branch. */
+  sees_all_branches: boolean;
   is_active: boolean;
   email_verified: boolean;
   permissions: string[];
@@ -120,6 +150,8 @@ export interface ApplicationSummary {
   status: ApplicationStatus;
   priority: Priority;
   visa_type: VisaTypeBrief;
+  /** The office handling this application, chosen by the applicant. */
+  branch: BranchBrief;
   submitted_at: string | null;
   created_at: string;
   assigned_to: StaffBrief | null;

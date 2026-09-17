@@ -9,7 +9,7 @@ import { Field } from "@/components/ui/Field";
 import { api, apiErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/stores/auth";
-import type { Paginated, UserRole } from "@/types/domain";
+import type { Branch, BranchBrief, Paginated, UserRole } from "@/types/domain";
 
 interface Account {
   id: number;
@@ -20,6 +20,7 @@ interface Account {
   phone: string;
   role: UserRole;
   role_label: string;
+  branch: BranchBrief | null;
   is_active: boolean;
   email_verified: boolean;
   extra_permissions: string[];
@@ -405,10 +406,19 @@ function AccountForm({
     last_name: account?.last_name ?? "",
     phone: account?.phone ?? "",
     role: (account?.role ?? "visa_officer") as UserRole,
+    branch_id: account?.branch?.id ?? null,
     extra_permissions: account?.extra_permissions ?? [],
     denied_permissions: account?.denied_permissions ?? [],
   });
   const [error, setError] = useState<string | null>(null);
+
+  const { data: branches } = useQuery({
+    queryKey: ["mis", "branches"],
+    queryFn: async () => {
+      const { data } = await api.get<Branch[]>("/branches/");
+      return data;
+    },
+  });
 
   const defaults =
     catalogue?.roles.find((item) => item.value === form.role)?.defaults ?? [];
@@ -427,6 +437,7 @@ function AccountForm({
         last_name: form.last_name,
         phone: form.phone,
         role: form.role,
+        branch_id: form.branch_id,
         extra_permissions: form.extra_permissions,
         denied_permissions: form.denied_permissions,
       });
@@ -562,6 +573,36 @@ function AccountForm({
           <p className="text-xs text-ink-500">
             The role sets the baseline. Adjust individual permissions below if
             this person needs more or less.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="account-branch"
+            className="block text-sm font-medium text-ink-700"
+          >
+            Branch
+          </label>
+          <select
+            id="account-branch"
+            value={form.branch_id ?? ""}
+            onChange={(event) =>
+              setForm((f) => ({
+                ...f,
+                branch_id: event.target.value ? Number(event.target.value) : null,
+              }))
+            }
+            className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+          >
+            {branches?.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-ink-500">
+            Staff in the general branch see every branch's work. Everyone else
+            sees only their own.
           </p>
         </div>
 

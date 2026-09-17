@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from accounts import permissions as perms
 from audit import services as audit
+from branches.scoping import sees_all_branches
 from core.permissions import IsMISUser
 
 from . import services
@@ -98,7 +99,20 @@ class ReportViewSet(viewsets.ViewSet):
             "date_to": params.get("date_to") or None,
             "group": params.get("group") or "country",
             "interval": params.get("interval") or "month",
+            "branch": self._branch(request),
         }
+
+    def _branch(self, request):
+        """Which branch this report covers; None means the whole company.
+
+        A branch user is pinned to their own office whatever they ask for, so
+        a hand-written query string cannot read another branch's figures.
+        """
+        user = request.user
+        if not sees_all_branches(user):
+            return user.branch_id
+        requested = request.query_params.get("branch")
+        return int(requested) if requested and requested.isdigit() else None
 
     def _build(self, name, request):
         try:

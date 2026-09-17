@@ -10,6 +10,7 @@ import logging
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.auth import get_user_model
+from django.db import models
 
 from .models import Notification
 
@@ -86,15 +87,24 @@ def notify(
 
 
 def notify_mis(*, category, title, message="", application=None, link="", play_sound=False):
-    """Alert the staff who should act on this — the assignee, or everyone.
+    """Alert the staff who should act on this — the assignee, or the desk.
 
     Once an application has an owner, only that person is interrupted; before
     assignment the whole desk needs to see it so nothing sits unclaimed.
+
+    "The desk" means the branch handling the application, plus the general
+    branch which oversees all of them. Alerting every office would bury a
+    branch's own arrivals under work it cannot even open.
     """
     if application and application.assigned_to_id:
         recipients = User.objects.filter(pk=application.assigned_to_id, is_active=True)
     else:
         recipients = User.objects.filter(role__in=MIS_ALERT_ROLES, is_active=True)
+        if application is not None:
+            recipients = recipients.filter(
+                models.Q(branch_id=application.branch_id)
+                | models.Q(branch__is_general=True)
+            )
 
     return [
         notify(

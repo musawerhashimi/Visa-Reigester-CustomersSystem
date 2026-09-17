@@ -12,6 +12,7 @@ import {
   PageHeader,
 } from "@/components/public/PageShell";
 import { api } from "@/lib/api";
+import { mediaUrl } from "@/lib/cms";
 import { cn } from "@/lib/cn";
 import { translate } from "@/lib/i18n";
 import type { Country, Paginated, VisaType } from "@/types/domain";
@@ -80,76 +81,94 @@ export default function Visas() {
         )}
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {visas.data?.map((visa) => (
-            <article key={visa.id} className="card flex flex-col p-6">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold text-ink-900">
-                    {translate(visa.name)}
-                  </h2>
-                  <p className="mt-0.5 text-sm text-ink-500">
-                    {visa.country.flag_emoji} {translate(visa.country.name)}
-                  </p>
-                </div>
-                {visa.fee_amount && (
-                  <span className="tabular shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
-                    {visa.fee_amount} {visa.fee_currency}
-                  </span>
+          {visas.data?.map((visa) => {
+            const image = mediaUrl(visa.image);
+            return (
+              <article key={visa.id} className="card flex flex-col overflow-hidden">
+                {image ? (
+                  <img
+                    src={image}
+                    alt=""
+                    className="h-44 w-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="grid h-44 place-items-center bg-brand-50 text-brand-300">
+                    <Plane className="size-8" aria-hidden />
+                  </div>
                 )}
-              </div>
 
-              {translate(visa.description) && (
-                <p className="mt-3 text-sm leading-relaxed text-ink-500">
-                  {translate(visa.description)}
-                </p>
-              )}
-
-              {visa.required_documents.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-400">
-                    <FileCheck2 className="size-3.5" aria-hidden />
-                    {t("pages.documentsNeeded")}
-                  </h3>
-                  <ul className="mt-2 space-y-1">
-                    {visa.required_documents.slice(0, 5).map((item) => (
-                      <li
-                        key={item.id}
-                        className="flex items-start gap-1.5 text-sm text-ink-600"
-                      >
-                        <span
-                          className="mt-1.5 size-1 shrink-0 rounded-full bg-ink-300"
-                          aria-hidden
-                        />
-                        {translate(item.document_type.name)}
-                        {!item.is_mandatory && (
-                          <span className="text-xs text-ink-400">({t("pages.optional")})</span>
-                        )}
-                      </li>
-                    ))}
-                    {visa.required_documents.length > 5 && (
-                      <li className="text-xs text-ink-400">
-                        {t("pages.andMore", { count: visa.required_documents.length - 5 })}
-                      </li>
+                <div className="flex flex-1 flex-col p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-base font-semibold text-ink-900">
+                        {translate(visa.name)}
+                      </h2>
+                      <p className="mt-0.5 text-sm text-ink-500">
+                        {visa.country.flag_emoji} {translate(visa.country.name)}
+                      </p>
+                    </div>
+                    {visa.fee_amount && (
+                      <span className="tabular shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700">
+                        {visa.fee_amount} {visa.fee_currency}
+                      </span>
                     )}
-                  </ul>
+                  </div>
+    
+                  {translate(visa.description) && (
+                    <p className="mt-3 text-sm leading-relaxed text-ink-500">
+                      {translate(visa.description)}
+                    </p>
+                  )}
+    
+                  {visa.required_documents.length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-ink-400">
+                        <FileCheck2 className="size-3.5" aria-hidden />
+                        {t("pages.documentsNeeded")}
+                      </h3>
+                      <ul className="mt-2 space-y-1">
+                        {visa.required_documents.slice(0, 5).map((item) => (
+                          <li
+                            key={item.id}
+                            className="flex items-start gap-1.5 text-sm text-ink-600"
+                          >
+                            <span
+                              className="mt-1.5 size-1 shrink-0 rounded-full bg-ink-300"
+                              aria-hidden
+                            />
+                            {translate(item.document_type.name)}
+                            {!item.is_mandatory && (
+                              <span className="text-xs text-ink-400">({t("pages.optional")})</span>
+                            )}
+                          </li>
+                        ))}
+                        {visa.required_documents.length > 5 && (
+                          <li className="text-xs text-ink-400">
+                            {t("pages.andMore", { count: visa.required_documents.length - 5 })}
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+    
+                  <div className="mt-auto pt-5">
+                    {translate(visa.processing_time) && (
+                      <p className="flex items-center gap-1.5 text-xs text-ink-500">
+                        <Clock className="size-3.5" aria-hidden />
+                        {t("pages.processing")}: {translate(visa.processing_time)}
+                      </p>
+                    )}
+                    <Link to="/signup" className="mt-3 block">
+                      <Button fullWidth icon={<ArrowRight className="size-4" />}>
+                        {t("home.applyNow")}
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              )}
-
-              <div className="mt-auto pt-5">
-                {translate(visa.processing_time) && (
-                  <p className="flex items-center gap-1.5 text-xs text-ink-500">
-                    <Clock className="size-3.5" aria-hidden />
-                    {t("pages.processing")}: {translate(visa.processing_time)}
-                  </p>
-                )}
-                <Link to="/signup" className="mt-3 block">
-                  <Button fullWidth icon={<ArrowRight className="size-4" />}>
-                    {t("home.applyNow")}
-                  </Button>
-                </Link>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </PageBody>
     </>

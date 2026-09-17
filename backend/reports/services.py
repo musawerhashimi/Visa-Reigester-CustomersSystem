@@ -53,6 +53,17 @@ def _as_datetime(value, at_time):
     return parsed
 
 
+def _for_branch(queryset, branch, field="branch"):
+    """Limit a report to one branch, or leave it whole for the general one.
+
+    `branch` is the id the view resolved from the caller: None means this user
+    sees every branch, so the report covers the whole company.
+    """
+    if branch is None:
+        return queryset
+    return queryset.filter(**{field: branch})
+
+
 def _within(queryset, field, start, end):
     if start:
         queryset = queryset.filter(**{f"{field}__gte": start})
@@ -61,10 +72,12 @@ def _within(queryset, field, start, end):
     return queryset
 
 
-def applications_report(*, date_from=None, date_to=None, **_):
+def applications_report(*, date_from=None, date_to=None, branch=None, **_):
     """Applications by status, with the counts section 37 asks for."""
     start, end = parse_range(date_from, date_to)
-    queryset = _within(Application.objects.alive(), "created_at", start, end)
+    queryset = _within(
+        _for_branch(Application.objects.alive(), branch), "created_at", start, end
+    )
 
     counts = dict(
         queryset.values_list("status").annotate(total=Count("id")).values_list("status", "total")
@@ -98,7 +111,7 @@ def applications_report(*, date_from=None, date_to=None, **_):
     }
 
 
-def visa_report(*, date_from=None, date_to=None, group="country", **_):
+def visa_report(*, date_from=None, date_to=None, group="country", branch=None, **_):
     """Applications by destination country or visa type, with success rates."""
     from core.i18n import translate
 
@@ -159,13 +172,16 @@ def visa_report(*, date_from=None, date_to=None, group="country", **_):
     }
 
 
-def processing_time_report(*, date_from=None, date_to=None, **_):
+def processing_time_report(*, date_from=None, date_to=None, branch=None, **_):
     """How long decided applications took, per section 37."""
     start, end = parse_range(date_from, date_to)
 
     queryset = _within(
-        Application.objects.alive().filter(
-            submitted_at__isnull=False, decided_at__isnull=False
+        _for_branch(
+            Application.objects.alive().filter(
+                submitted_at__isnull=False, decided_at__isnull=False
+            ),
+            branch,
         ),
         "decided_at",
         start,
@@ -211,10 +227,19 @@ def processing_time_report(*, date_from=None, date_to=None, **_):
     }
 
 
-def customers_report(*, date_from=None, date_to=None, **_):
+def customers_report(*, date_from=None, date_to=None, branch=None, **_):
     """Customers by country, with how many have applied."""
     start, end = parse_range(date_from, date_to)
-    queryset = _within(CustomerProfile.objects.alive(), "created_at", start, end)
+    queryset = _within(
+        _for_branch(
+            CustomerProfile.objects.alive(), branch, field="applications__branch"
+        ),
+        "created_at",
+        start,
+        end,
+    )
+    if branch is not None:
+        queryset = queryset.distinct()
 
     buckets = (
         queryset.values("country")
@@ -253,10 +278,15 @@ def customers_report(*, date_from=None, date_to=None, **_):
     }
 
 
-def financial_report(*, date_from=None, date_to=None, **_):
+def financial_report(*, date_from=None, date_to=None, branch=None, **_):
     """Payments recorded in the period, grouped by status (section 37)."""
     start, end = parse_range(date_from, date_to)
-    queryset = _within(Payment.objects.all(), "paid_at", start, end)
+    queryset = _within(
+        _for_branch(Payment.objects.all(), branch, field="application__branch"),
+        "paid_at",
+        start,
+        end,
+    )
 
     buckets = (
         queryset.values("status", "currency")
@@ -296,12 +326,16 @@ def financial_report(*, date_from=None, date_to=None, **_):
     }
 
 
-def applications_over_time(*, date_from=None, date_to=None, interval="month", **_):
+def applications_over_time(
+    *, date_from=None, date_to=None, interval="month", branch=None, **_
+):
     """Volume per period, for the dashboard chart (section 20)."""
     truncator = TRUNCATORS.get(interval, TruncMonth)
     start, end = parse_range(date_from, date_to)
 
-    queryset = _within(Application.objects.alive(), "created_at", start, end)
+    queryset = _within(
+        _for_branch(Application.objects.alive(), branch), "created_at", start, end
+    )
     buckets = (
         queryset.annotate(period=truncator("created_at"))
         .values("period")

@@ -71,6 +71,15 @@ class Application(SoftDeleteModel):
     visa_type = models.ForeignKey(
         "visas.VisaType", on_delete=models.PROTECT, related_name="applications"
     )
+    # The office handling this application, chosen by the applicant when they
+    # apply. Every downstream record — documents, emails, payments — inherits
+    # its branch from here rather than storing its own.
+    branch = models.ForeignKey(
+        "branches.Branch",
+        on_delete=models.PROTECT,
+        related_name="applications",
+        db_index=True,
+    )
 
     status = models.CharField(
         max_length=30,
@@ -160,6 +169,12 @@ class Application(SoftDeleteModel):
     def save(self, *args, **kwargs):
         if not self.application_number:
             self.application_number = self.generate_number()
+        if self.branch_id is None:
+            # Applications created outside the portal form — by an importer or
+            # by staff — fall to the head office rather than being rejected.
+            from branches.models import Branch
+
+            self.branch = Branch.general()
         super().save(*args, **kwargs)
 
     @staticmethod

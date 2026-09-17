@@ -3,6 +3,7 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from branches.serializers import BranchBriefSerializer
 from customers.models import CustomerProfile
 
 from .models import LoginHistory, User
@@ -11,6 +12,9 @@ from .models import LoginHistory, User
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source="get_full_name", read_only=True)
     permissions = serializers.SerializerMethodField()
+    branch = BranchBriefSerializer(read_only=True)
+    # The MIS keys "show everything" off this rather than re-deriving the rule.
+    sees_all_branches = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = User
@@ -22,6 +26,8 @@ class UserSerializer(serializers.ModelSerializer):
             "full_name",
             "phone",
             "role",
+            "branch",
+            "sees_all_branches",
             "is_active",
             "email_verified",
             "permissions",

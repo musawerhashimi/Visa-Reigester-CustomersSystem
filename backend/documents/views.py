@@ -7,6 +7,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from accounts import permissions as perms
+from branches.scoping import scope_to_branch
 from applications.models import Application
 
 from . import services
@@ -39,6 +40,10 @@ class DocumentViewSet(viewsets.ReadOnlyModelViewSet):
 
         if user.is_customer:
             return queryset.filter(application__customer__user=user)
+
+        # Documents follow the branch of the application they belong to.
+        queryset = scope_to_branch(queryset, user, field="application__branch")
+
         if user.has_perm_slug(perms.APPLICATIONS_VIEW):
             return queryset
         if user.has_perm_slug(perms.DOCUMENTS_VIEW):

@@ -333,6 +333,47 @@ def assign(application, staff, *, actor=None, request=None, priority=None):
 
 
 @transaction.atomic
+def transfer(application, branch, *, actor=None, request=None):
+    """Move an application to another branch.
+
+    The officer who owned it works in the old branch and would lose sight of
+    the record, so the assignment is cleared and the receiving branch picks
+    it up as unclaimed work.
+    """
+    previous = application.branch
+    if previous == branch:
+        raise WorkflowError("This application is already with that branch.")
+
+    application.branch = branch
+    application.assigned_to = None
+    application.assigned_at = None
+    application.save(
+        update_fields=["branch", "assigned_to", "assigned_at", "updated_at"]
+    )
+
+    add_timeline(
+        application,
+        action="Application transferred",
+        description=f"Moved from {previous.name} to {branch.name}.",
+        actor=actor,
+        visible=False,
+    )
+
+    audit.record(
+        action="transfer",
+        module="applications",
+        actor=actor,
+        record_id=application.pk,
+        record_label=application.application_number,
+        field_name="branch",
+        old_value=previous.name,
+        new_value=branch.name,
+        request=request,
+    )
+    return application
+
+
+@transaction.atomic
 def cancel(application, *, reason, actor=None, request=None):
     """Section 17: applications are cancelled, never deleted."""
     if application.is_terminal:
@@ -397,8 +438,15 @@ def _send_customer_email(application, trigger, extra=None):
 
 
 def _send_company_email(application):
-    """Rule 1 — tell the office even when nobody has the MIS open."""
-    recipient = getattr(settings, "COMPANY_NOTIFICATION_EMAIL", "")
+    """Rule 1 — tell the office even when nobody has the MIS open.
+
+    The branch handling the application is the office that needs to know, so
+    its own inbox is used when it has one; the company address is the fallback
+    for branches that have not set one.
+    """
+    recipient = application.branch.email or getattr(
+        settings, "COMPANY_NOTIFICATION_EMAIL", ""
+    )
     if not recipient:
         return None
 

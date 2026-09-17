@@ -5,6 +5,7 @@ import {
   FileCheck2,
   Globe2,
   Headphones,
+  Plane,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -218,27 +219,44 @@ export default function Home() {
           subtitle="The visas we are helping most applicants with right now."
         >
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {featuredVisas.data?.map((visa) => (
-              <article key={visa.id} className="card flex flex-col p-6">
-                <h3 className="text-base font-semibold">{translate(visa.name)}</h3>
-                <p className="mt-0.5 text-sm text-ink-500">
-                  {visa.country.flag_emoji} {translate(visa.country.name)}
-                </p>
-                {translate(visa.description) && (
-                  <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-500">
-                    {translate(visa.description)}
-                  </p>
-                )}
-                <div className="mt-auto pt-5">
-                  {translate(visa.processing_time) && (
-                    <p className="flex items-center gap-1.5 text-xs text-ink-500">
-                      <Clock className="size-3.5" aria-hidden />
-                      {translate(visa.processing_time)}
-                    </p>
+            {featuredVisas.data?.map((visa) => {
+              const image = mediaUrl(visa.image);
+              return (
+                <article key={visa.id} className="card flex flex-col overflow-hidden">
+                  {image ? (
+                    <img
+                      src={image}
+                      alt=""
+                      className="h-40 w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="grid h-40 place-items-center bg-brand-50 text-brand-300">
+                      <Plane className="size-8" aria-hidden />
+                    </div>
                   )}
-                </div>
-              </article>
-            ))}
+                  <div className="flex flex-1 flex-col p-6">
+                    <h3 className="text-base font-semibold">{translate(visa.name)}</h3>
+                    <p className="mt-0.5 text-sm text-ink-500">
+                      {visa.country.flag_emoji} {translate(visa.country.name)}
+                    </p>
+                    {translate(visa.description) && (
+                      <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-ink-500">
+                        {translate(visa.description)}
+                      </p>
+                    )}
+                    <div className="mt-auto pt-5">
+                      {translate(visa.processing_time) && (
+                        <p className="flex items-center gap-1.5 text-xs text-ink-500">
+                          <Clock className="size-3.5" aria-hidden />
+                          {translate(visa.processing_time)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
           <div className="mt-8">
             <Link to="/visas">

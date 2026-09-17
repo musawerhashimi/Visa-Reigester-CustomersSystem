@@ -7,6 +7,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from accounts import permissions as perms
+from branches.scoping import scope_to_branch
 from applications.models import Application
 
 from . import services
@@ -20,14 +21,20 @@ from .serializers import (
 )
 
 
-def _scope_to_caller(queryset, user, customer_path, assigned_path):
+def _scope_to_caller(
+    queryset, user, customer_path, assigned_path, branch_path="application__branch"
+):
     """Narrow a queryset to what this user may see.
 
     Customers get their own records; staff get everything or only their
-    assigned workload, matching the application rules.
+    assigned workload, matching the application rules. Money follows the
+    branch handling the application either way.
     """
     if user.is_customer:
         return queryset.filter(**{customer_path: user})
+
+    queryset = scope_to_branch(queryset, user, field=branch_path)
+
     if user.has_perm_slug(perms.APPLICATIONS_VIEW) or user.has_perm_slug(
         perms.PAYMENTS_VIEW
     ):

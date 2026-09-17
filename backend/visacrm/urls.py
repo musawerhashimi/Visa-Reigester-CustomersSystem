@@ -8,6 +8,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.staff_views import StaffListView
 from accounts.user_views import AccountViewSet
 from applications.views import ApplicationViewSet
+from branches.views import BranchViewSet, PublicBranchListView
 from customers.views import CustomerViewSet, InternalNoteViewSet
 from documents.type_views import DocumentTypeListView
 from documents.views import ApplicationDocumentView, DocumentViewSet
@@ -46,6 +47,7 @@ from visas.views import (
 )
 
 router = DefaultRouter()
+router.register("branches", BranchViewSet, basename="branch")
 router.register("countries", CountryViewSet, basename="country")
 router.register("visa-categories", VisaCategoryViewSet, basename="visa-category")
 router.register("visa-types", VisaTypeViewSet, basename="visa-type")
@@ -107,6 +109,11 @@ urlpatterns = [
     path("api/cms/company/", CompanyInfoView.as_view(), name="cms-company"),
     path("api/cms/mail-test/", MailTestView.as_view(), name="cms-mail-test"),
     path("api/staff/", StaffListView.as_view(), name="staff-list"),
+    path(
+        "api/public-branches/",
+        PublicBranchListView.as_view(),
+        name="public-branches",
+    ),
     path("api/document-types/", DocumentTypeListView.as_view(), name="document-types"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

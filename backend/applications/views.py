@@ -7,6 +7,8 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from accounts import permissions as perms
+from branches.models import Branch
+from branches.scoping import scope_to_branch, sees_all_branches
 from core.permissions import IsOwnerOrMIS
 
 from .models import Application
@@ -32,7 +34,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     permission_classes = (IsOwnerOrMIS,)
     filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ("status", "priority", "visa_type", "assigned_to")
+    filterset_fields = ("status", "priority", "visa_type", "assigned_to", "branch")
     search_fields = (
         "application_number",
         "first_name",
@@ -53,13 +55,17 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         queryset = (
             Application.objects.alive()
             .select_related(
-                "customer__user", "visa_type__country", "visa_type", "assigned_to"
+                "customer__user", "visa_type__country", "visa_type", "assigned_to", "branch"
             )
             .prefetch_related("documents__document_type")
         )
 
         if user.is_customer:
             return queryset.filter(customer__user=user)
+
+        # Staff see only their own branch's work unless they sit in the
+        # general branch. This narrows every staff path below it.
+        queryset = scope_to_branch(queryset, user)
 
         if user.has_perm_slug(perms.APPLICATIONS_VIEW):
             return queryset
@@ -158,6 +164,29 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             request=request,
             priority=serializer.validated_data.get("priority"),
         )
+        return Response(self.get_serializer(application).data)
+
+    @action(detail=True, methods=["post"])
+    def transfer(self, request, pk=None):
+        """Move an application to another branch.
+
+        Held to the general branch: a branch moving work to itself, or pushing
+        its backlog elsewhere, is not a decision a single office should make.
+        """
+        if not sees_all_branches(request.user) or not request.user.has_perm_slug(
+            perms.APPLICATIONS_ASSIGN
+        ):
+            raise PermissionDenied("You cannot transfer applications between branches.")
+
+        application = self.get_object()
+        branch = Branch.objects.active().filter(pk=request.data.get("branch_id")).first()
+        if branch is None:
+            raise ValidationError({"branch_id": "Select an active branch."})
+
+        try:
+            workflow.transfer(application, branch, actor=request.user, request=request)
+        except workflow.WorkflowError as exc:
+            raise ValidationError({"detail": str(exc)})
         return Response(self.get_serializer(application).data)
 
     @action(detail=True, methods=["post"])

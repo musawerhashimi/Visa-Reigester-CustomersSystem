@@ -16,6 +16,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from audit import services as audit
+from branches.scoping import sees_all_branches
 from core.permissions import IsMISUser
 
 from . import permissions as perms
@@ -61,6 +62,18 @@ class AccountViewSet(viewsets.ModelViewSet):
         if not self.request.user.has_perm_slug(slug):
             raise PermissionDenied(message)
 
+    def _guard_branch(self, branch):
+        """A branch user may only place staff in their own office.
+
+        Accounts are not branch-scoped for reading, but creating a colleague
+        inside another branch would hand that branch's work to someone the
+        general office never posted there.
+        """
+        if branch is None or sees_all_branches(self.request.user):
+            return
+        if branch.pk != self.request.user.branch_id:
+            raise PermissionDenied("You can only manage staff in your own branch.")
+
     def _guard_privilege(self, role):
         """Only a super admin may create or promote another super admin.
 
@@ -76,6 +89,7 @@ class AccountViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         self._require(perms.USERS_CREATE, "You cannot create accounts.")
         self._guard_privilege(serializer.validated_data.get("role"))
+        self._guard_branch(serializer.validated_data.get("branch"))
 
         user = serializer.save()
         audit.record(
@@ -93,6 +107,7 @@ class AccountViewSet(viewsets.ModelViewSet):
         self._require(perms.USERS_EDIT, "You cannot change accounts.")
 
         instance = serializer.instance
+        self._guard_branch(serializer.validated_data.get("branch"))
         new_role = serializer.validated_data.get("role", instance.role)
         if new_role != instance.role:
             self._guard_privilege(new_role)

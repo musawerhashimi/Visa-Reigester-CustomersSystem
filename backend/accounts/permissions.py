@@ -50,6 +50,9 @@ USERS_DELETE = "users.delete"
 
 AUDIT_VIEW = "audit.view"
 
+BRANCHES_VIEW = "branches.view"
+BRANCHES_MANAGE = "branches.manage"
+
 ALL_PERMISSIONS = frozenset(
     value
     for name, value in list(globals().items())
@@ -90,6 +93,7 @@ _ROLE_PERMISSIONS = {
             DOCUMENTS_REQUEST,
             EMAILS_SEND,
             PAYMENTS_VIEW,
+            BRANCHES_VIEW,
         }
     ),
     "cms_manager": _CMS_PERMISSIONS | {VISAS_MANAGE},

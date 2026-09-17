@@ -7,6 +7,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from accounts import permissions as perms
+from branches.scoping import sees_all_branches
 from applications.models import Application
 from applications.services import workflow
 from audit import services as audit
@@ -104,6 +105,17 @@ class EmailLogViewSet(
         queryset = EmailLog.objects.select_related(
             "application", "template", "sent_by"
         ).prefetch_related("attachments")
+
+        # Correspondence follows its application's branch. Email with no
+        # application behind it — a reply to a contact enquiry — is not branch
+        # work and stays visible to every office.
+        if not sees_all_branches(user):
+            if user.branch_id is None:
+                return queryset.none()
+            queryset = queryset.filter(
+                models.Q(application__branch=user.branch_id)
+                | models.Q(application__isnull=True)
+            )
 
         if user.has_perm_slug(perms.APPLICATIONS_VIEW):
             return queryset

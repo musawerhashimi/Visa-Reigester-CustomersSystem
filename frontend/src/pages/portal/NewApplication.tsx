@@ -9,12 +9,18 @@ import { Field } from "@/components/ui/Field";
 import { api, apiErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { translate } from "@/lib/i18n";
-import type { ApplicationDetail, Paginated, VisaType } from "@/types/domain";
+import type {
+  ApplicationDetail,
+  Paginated,
+  PublicBranch,
+  VisaType,
+} from "@/types/domain";
 
 type Values = Record<string, string>;
 
 const STEPS = [
   { key: "visa", title: "Visa" },
+  { key: "branch", title: "Office" },
   { key: "personal", title: "Personal" },
   { key: "contact", title: "Contact" },
   { key: "passport", title: "Passport" },
@@ -63,6 +69,7 @@ export default function NewApplication() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [visaTypeId, setVisaTypeId] = useState<number | null>(null);
+  const [branchId, setBranchId] = useState<number | null>(null);
   const [values, setValues] = useState<Values>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -74,10 +81,21 @@ export default function NewApplication() {
     },
   });
 
+  const { data: branches } = useQuery({
+    queryKey: ["public-branches"],
+    queryFn: async () => {
+      const { data } = await api.get<PublicBranch[]>("/public-branches/");
+      return data;
+    },
+  });
+
   const create = useMutation({
     mutationFn: async () => {
       // Dates come back as "" from untouched inputs; the API expects null.
-      const payload: Record<string, unknown> = { visa_type_id: visaTypeId };
+      const payload: Record<string, unknown> = {
+        visa_type_id: visaTypeId,
+        branch_id: branchId,
+      };
       for (const [key, value] of Object.entries(values)) {
         payload[key] = value === "" ? null : value;
       }
@@ -102,6 +120,7 @@ export default function NewApplication() {
 
   function canContinue() {
     if (currentStep.key === "visa") return visaTypeId !== null;
+    if (currentStep.key === "branch") return branchId !== null;
     const fields = FIELDS[currentStep.key] ?? [];
     return fields.every((field) => !field.required || values[field.name]?.trim());
   }
@@ -233,6 +252,54 @@ export default function NewApplication() {
                 .
               </p>
             )}
+          </fieldset>
+        ) : currentStep.key === "branch" ? (
+          <fieldset>
+            <legend className="text-sm font-semibold text-ink-900">
+              Which office should handle your application?
+            </legend>
+            <p className="mt-1 text-sm text-ink-500">
+              Your application is sent to this office and processed by its
+              staff.
+            </p>
+            <div className="mt-4 space-y-2">
+              {branches?.map((branch) => (
+                <label
+                  key={branch.id}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors",
+                    branchId === branch.id
+                      ? "border-brand-500 bg-brand-50/50 ring-1 ring-brand-500"
+                      : "border-ink-200 hover:border-ink-300 hover:bg-ink-50",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="branch"
+                    value={branch.id}
+                    checked={branchId === branch.id}
+                    onChange={() => setBranchId(branch.id)}
+                    className="mt-0.5 size-4 text-brand-600 focus:ring-brand-500/30"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-ink-900">
+                      {branch.name}
+                    </span>
+                    {(branch.city || branch.country) && (
+                      <span className="mt-1 block text-sm text-ink-500">
+                        {[branch.city, branch.country]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                    )}
+                    <span className="mt-1.5 flex flex-wrap gap-x-4 text-xs text-ink-400">
+                      {branch.address && <span>{branch.address}</span>}
+                      {branch.phone && <span>{branch.phone}</span>}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
           </fieldset>
         ) : (
           <fieldset>

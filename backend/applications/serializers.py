@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from branches.models import Branch
+from branches.serializers import BranchBriefSerializer
 from documents.models import DocumentRequest
 from documents.serializers import DocumentRequestSerializer, DocumentSerializer
 from visas.models import VisaType
@@ -33,6 +35,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     """Row shape for both the MIS list and the customer's application list."""
 
     visa_type = VisaTypeBriefSerializer(read_only=True)
+    branch = BranchBriefSerializer(read_only=True)
     full_name = serializers.CharField(read_only=True)
     assigned_to = serializers.SerializerMethodField()
     customer_name = serializers.SerializerMethodField()
@@ -47,6 +50,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "visa_type",
+            "branch",
             "submitted_at",
             "created_at",
             "assigned_to",
@@ -70,6 +74,10 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     visa_type_id = serializers.PrimaryKeyRelatedField(
         queryset=VisaType.objects.all(), source="visa_type", write_only=True
     )
+    branch = BranchBriefSerializer(read_only=True)
+    branch_id = serializers.PrimaryKeyRelatedField(
+        queryset=Branch.objects.active(), source="branch", write_only=True
+    )
     documents = serializers.SerializerMethodField()
     document_requests = serializers.SerializerMethodField()
     pipeline = serializers.SerializerMethodField()
@@ -90,6 +98,8 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
             "priority",
             "visa_type",
             "visa_type_id",
+            "branch",
+            "branch_id",
             "full_name",
             "first_name",
             "middle_name",

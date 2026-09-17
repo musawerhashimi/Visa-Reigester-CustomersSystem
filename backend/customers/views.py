@@ -1,11 +1,12 @@
 from django.db import models
-from django.db.models import Count
+from django.db.models import Count, Q
 from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from accounts import permissions as perms
+from branches.scoping import sees_all_branches
 from applications.models import Application
 from core.permissions import IsMISUser
 
@@ -31,13 +32,38 @@ class CustomerViewSet(
     ordering_fields = ("created_at", "customer_code")
 
     def get_queryset(self):
-        if not self.request.user.has_perm_slug(perms.CUSTOMERS_VIEW):
+        user = self.request.user
+        if not user.has_perm_slug(perms.CUSTOMERS_VIEW):
             return CustomerProfile.objects.none()
-        return (
-            CustomerProfile.objects.alive()
-            .select_related("user")
-            .annotate(application_count=Count("applications"))
-        )
+
+        queryset = CustomerProfile.objects.alive().select_related("user")
+
+        # Customer accounts are global, so a branch sees the people it is
+        # actually handling work for: anyone with an application here. The
+        # count is filtered to match, or a branch would see a total it cannot
+        # open.
+        if not sees_all_branches(user):
+            if user.branch_id is None:
+                return queryset.none()
+            return (
+                queryset.filter(
+                    applications__branch=user.branch_id,
+                    applications__deleted_at__isnull=True,
+                )
+                .distinct()
+                .annotate(
+                    application_count=Count(
+                        "applications",
+                        filter=Q(applications__branch=user.branch_id),
+                        distinct=True,
+                    )
+                )
+                # The join past applications loses the model's ordering, which
+                # pagination needs to stay stable between pages.
+                .order_by("-created_at")
+            )
+
+        return queryset.annotate(application_count=Count("applications"))
 
     def _set_active(self, request, active):
         """Section 23: customers are deactivated, never deleted."""
