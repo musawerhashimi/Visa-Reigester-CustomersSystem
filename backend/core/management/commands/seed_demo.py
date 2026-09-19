@@ -43,6 +43,7 @@ EMAIL_TEMPLATES = [
             "Country: {{country}}\n\n"
             "Our team will review your application and contact you if anything "
             "further is required.\n\n"
+            "You can follow its progress here:\n{{application_url}}\n\n"
             "Regards,\n{{company_name}}"
         ),
     },
@@ -56,7 +57,7 @@ EMAIL_TEMPLATES = [
             "We require an additional document for your application.\n\n"
             "Required document: {{document_name}}\n"
             "Reason: {{reason}}\n\n"
-            "Please upload it through your customer portal.\n\n"
+            "Please upload it here:\n{{application_url}}\n\n"
             "Regards,\n{{company_name}}"
         ),
     },
@@ -69,7 +70,7 @@ EMAIL_TEMPLATES = [
             "Dear {{customer_name}},\n\n"
             "The document '{{document_name}}' could not be accepted.\n\n"
             "Reason: {{reason}}\n\n"
-            "Please upload a new copy through your customer portal.\n\n"
+            "Please upload a new copy here:\n{{application_url}}\n\n"
             "Regards,\n{{company_name}}"
         ),
     },
@@ -82,6 +83,7 @@ EMAIL_TEMPLATES = [
             "Dear {{customer_name}},\n\n"
             "Your document '{{document_name}}' has been verified.\n\n"
             "Application ID: {{application_id}}\n\n"
+            "See your application here:\n{{application_url}}\n\n"
             "Regards,\n{{company_name}}"
         ),
     },
@@ -95,6 +97,7 @@ EMAIL_TEMPLATES = [
             "Your visa application has successfully passed the verification "
             "stage and is now being processed.\n\n"
             "Application ID: {{application_id}}\n\n"
+            "Follow its progress here:\n{{application_url}}\n\n"
             "Regards,\n{{company_name}}"
         ),
     },
@@ -108,6 +111,7 @@ EMAIL_TEMPLATES = [
             "We are pleased to inform you that your application has been approved.\n\n"
             "Application ID: {{application_id}}\n"
             "Visa: {{visa_type}}\n\n"
+            "Your documents are available here:\n{{application_url}}\n\n"
             "Regards,\n{{company_name}}"
         ),
     },

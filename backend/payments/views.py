@@ -7,17 +7,17 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
 from accounts import permissions as perms
-from branches.scoping import scope_to_branch
 from applications.models import Application
+from branches.scoping import scope_to_branch, sees_all_branches
 
 from . import services
 from .models import OfficialDocument, Payment, Receipt
 from .serializers import (
+    BillFeeSerializer,
     IssueDocumentSerializer,
     OfficialDocumentSerializer,
     PaymentSerializer,
     ReceiptSerializer,
-    RecordPaymentSerializer,
 )
 
 
@@ -64,32 +64,31 @@ class PaymentViewSet(
         )
 
     @action(detail=False, methods=["post"])
-    def record(self, request):
-        """Record a cash or transfer payment taken at the office."""
-        if not request.user.has_perm_slug(perms.PAYMENTS_MANAGE):
-            raise PermissionDenied("You cannot record payments.")
+    def bill(self, request):
+        """Bill the customer for a fee and send them the paperwork.
 
-        serializer = RecordPaymentSerializer(data=request.data)
+        The bill reaches the portal and their inbox in one step, so staff do
+        not have to chase it with a separate email.
+        """
+        if not request.user.has_perm_slug(perms.PAYMENTS_MANAGE):
+            raise PermissionDenied("You cannot bill customers.")
+
+        serializer = BillFeeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        application = Application.objects.alive().filter(pk=data["application"]).first()
-        if application is None:
-            raise ValidationError({"application": "Unknown application."})
+        application = self._billable_application(data["application"])
 
         try:
-            payment, _ = services.record_payment(
+            payment, _ = services.bill_fee(
                 application,
+                kind=data["kind"],
                 amount=data["amount"],
                 currency=data["currency"],
-                method=data["method"],
-                status=data["status"],
-                paid_at=data.get("paid_at"),
-                reference=data["reference"],
+                card_number=data["card_number"],
                 note=data["note"],
                 actor=request.user,
                 request=request,
-                issue_receipt=data["issue_receipt"],
             )
         except services.PaymentError as error:
             return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
@@ -97,6 +96,34 @@ class PaymentViewSet(
         return Response(
             self.get_serializer(payment).data, status=status.HTTP_201_CREATED
         )
+
+    @action(detail=True, methods=["post"])
+    def settle(self, request, pk=None):
+        """Confirm a billed payment has arrived."""
+        if not request.user.has_perm_slug(perms.PAYMENTS_MANAGE):
+            raise PermissionDenied("You cannot confirm payments.")
+
+        payment = self.get_object()
+        try:
+            services.settle_payment(payment, actor=request.user, request=request)
+        except services.PaymentError as error:
+            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(self.get_serializer(payment).data)
+
+    def _billable_application(self, application_id):
+        """Resolve an application this user may bill against.
+
+        The payment queryset only reaches applications that already have one,
+        so a first bill has to check the branch against the application itself.
+        """
+        application = Application.objects.alive().filter(pk=application_id).first()
+        if application is None:
+            raise ValidationError({"application": "Unknown application."})
+        if not sees_all_branches(self.request.user):
+            if application.branch_id != self.request.user.branch_id:
+                raise PermissionDenied("That application belongs to another branch.")
+        return application
 
 
 class ReceiptViewSet(

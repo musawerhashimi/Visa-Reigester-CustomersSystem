@@ -18,6 +18,11 @@ def document_upload_path(instance, filename):
     return f"documents/{instance.application_id}/{uuid.uuid4().hex}.{extension}"
 
 
+# The document a customer uploads to prove they paid a bill. Named here so
+# the upload flow and the migration that creates it cannot drift apart.
+PAYMENT_PROOF_CODE = "payment-proof"
+
+
 class DocumentType(TimeStampedModel):
     """Passport, bank statement, admission letter, and so on."""
 

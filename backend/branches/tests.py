@@ -322,3 +322,144 @@ class StaffBranchTests(BranchSetupMixin, TestCase):
         response = self.client_for(self.kabul_officer).get("/api/auth/me/")
         self.assertEqual(response.data["branch"]["code"], "KBL")
         self.assertFalse(response.data["sees_all_branches"])
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class BranchMailConfigTests(BranchSetupMixin, TestCase):
+    """A branch sends as itself so customer replies reach the right office."""
+
+    def test_a_branch_without_config_uses_the_company_address(self):
+        from emails.services import sender_address
+
+        self.assertEqual(sender_address(self.kabul), sender_address(None))
+
+    def test_a_branch_sends_from_its_own_address(self):
+        from emails.services import sender_address
+
+        self.kabul.sending_email = "kabul@office.test"
+        self.kabul.save(update_fields=["sending_email"])
+
+        self.assertEqual(sender_address(self.kabul), "kabul@office.test")
+        # The other office is unaffected.
+        self.assertNotEqual(sender_address(self.general), "kabul@office.test")
+
+    def test_mail_about_an_application_goes_out_as_its_branch(self):
+        from django.core import mail
+        from emails import services as email_service
+
+        self.kabul.sending_email = "kabul@office.test"
+        self.kabul.save(update_fields=["sending_email"])
+
+        mail.outbox.clear()
+        email_service.send_email(
+            to_email="customer@test.local",
+            subject="Test",
+            body="Body",
+            application=self.kabul_application,
+        )
+        self.assertEqual(mail.outbox[0].from_email, "kabul@office.test")
+
+    def test_a_branch_uses_its_own_server_when_it_has_one(self):
+        from emails.services import mail_connection
+
+        self.kabul.smtp_host = "smtp.kabul.test"
+        self.kabul.smtp_port = 587
+        self.kabul.set_smtp_password("secret")
+        self.kabul.smtp_enabled = True
+        self.kabul.save()
+
+        connection = mail_connection(self.kabul)
+        self.assertEqual(connection.host, "smtp.kabul.test")
+
+    def test_an_unconfigured_branch_does_not_borrow_another_server(self):
+        """Falling through to the company is right; to a sibling is not."""
+        from emails.services import mail_connection
+
+        self.kabul.smtp_host = "smtp.kabul.test"
+        self.kabul.smtp_enabled = True
+        self.kabul.save()
+
+        connection = mail_connection(self.general)
+        host = getattr(connection, "host", None)
+        self.assertNotEqual(host, "smtp.kabul.test")
+
+    def test_the_password_is_encrypted_and_never_returned(self):
+        self.kabul.set_smtp_password("supersecret")
+        self.kabul.smtp_host = "smtp.kabul.test"
+        self.kabul.smtp_enabled = True
+        self.kabul.save()
+
+        # Stored encrypted, not as typed.
+        self.assertNotIn("supersecret", self.kabul.smtp_password_encrypted)
+        self.assertEqual(self.kabul.get_smtp_password(), "supersecret")
+
+        response = self.client_for(self.head_officer).get("/api/branches/")
+        body = str(response.data)
+        self.assertNotIn("supersecret", body)
+        self.assertNotIn("smtp_password_encrypted", body)
+
+    def test_enabling_a_server_without_a_host_is_refused(self):
+        """It would fail silently on every send."""
+        response = self.client_for(self.head_officer).patch(
+            f"/api/branches/{self.kabul.pk}/",
+            {"smtp_enabled": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_saving_without_a_password_keeps_the_stored_one(self):
+        self.kabul.set_smtp_password("keepme")
+        self.kabul.smtp_host = "smtp.kabul.test"
+        self.kabul.smtp_enabled = True
+        self.kabul.save()
+
+        self.client_for(self.head_officer).patch(
+            f"/api/branches/{self.kabul.pk}/",
+            {"smtp_username": "changed"},
+            format="json",
+        )
+
+        self.kabul.refresh_from_db()
+        self.assertEqual(self.kabul.smtp_username, "changed")
+        self.assertEqual(self.kabul.get_smtp_password(), "keepme")
+
+    def test_a_branch_cannot_change_its_own_mail_settings(self):
+        """Otherwise a branch could redirect customer mail to an outside box."""
+        response = self.client_for(self.kabul_officer).patch(
+            f"/api/branches/{self.kabul.pk}/",
+            {"sending_email": "elsewhere@attacker.test"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+        self.kabul.refresh_from_db()
+        self.assertEqual(self.kabul.sending_email, "")
+
+
+class CompanySettingsAccessTests(BranchSetupMixin, TestCase):
+    """Company-wide settings belong to head office, not to each branch."""
+
+    def test_a_branch_cannot_read_the_company_mail_settings(self):
+        """Reading the server is the first step to repointing it."""
+        response = self.client_for(self.kabul_officer).get("/api/cms/company/")
+
+        self.assertEqual(response.status_code, 200)
+        for field in ("smtp_host", "smtp_username", "smtp_enabled", "sending_email"):
+            self.assertNotIn(field, response.data)
+
+    def test_the_general_branch_can_read_them(self):
+        response = self.client_for(self.head_officer).get("/api/cms/company/")
+        self.assertIn("smtp_host", response.data)
+
+    def test_a_branch_cannot_change_company_settings(self):
+        response = self.client_for(self.kabul_officer).patch(
+            "/api/cms/company/", {"phone": "000"}, format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_a_branch_cannot_send_a_company_mail_test(self):
+        """It authenticates as the company mailbox, so it is head office's."""
+        response = self.client_for(self.kabul_officer).post(
+            "/api/cms/mail-test/", {"email": "x@test.local"}, format="json"
+        )
+        self.assertEqual(response.status_code, 403)

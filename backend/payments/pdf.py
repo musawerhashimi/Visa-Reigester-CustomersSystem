@@ -213,7 +213,12 @@ def _build(story, title):
 
 
 def render_receipt(receipt):
-    """Payment receipt (section 35)."""
+    """Payment bill or receipt (section 35).
+
+    One template serves both: while the payment is unpaid this is a request
+    for money and says so, naming the account to pay into; once settled the
+    same document becomes proof of payment.
+    """
     from core.i18n import translate
 
     styles = _styles()
@@ -221,29 +226,38 @@ def render_receipt(receipt):
     payment = receipt.payment
     application = receipt.application
     customer = application.customer
+    is_bill = receipt.is_bill
+
+    label = "Bill" if is_bill else "Receipt"
+    fee = payment.get_kind_display()
+
+    rows = [
+        ("Customer", application.full_name),
+        ("Customer reference", customer.customer_code),
+        ("Application", application.application_number),
+        (
+            "Service",
+            f"{translate(application.visa_type.country.name)} "
+            f"{translate(application.visa_type.name)}",
+        ),
+        ("Fee", fee),
+    ]
+    if is_bill:
+        # A bill is useless without somewhere to send the money.
+        rows.append(("Pay into", payment.card_number or "—"))
+        rows.append(("Issued", receipt.created_at.strftime("%d %B %Y")))
+    else:
+        rows.append(("Payment method", payment.get_method_display()))
+        rows.append(("Payment date", payment.paid_at.strftime("%d %B %Y")))
+        rows.append(("Reference", payment.reference or "—"))
 
     story = [
-        _letterhead(styles, company, "Receipt"),
+        _letterhead(styles, company, label),
         Spacer(1, 14),
-        Paragraph("Payment receipt", styles["title"]),
-        Paragraph(f"Receipt no. {receipt.receipt_number}", styles["muted"]),
+        Paragraph(f"{fee} {label.lower()}", styles["title"]),
+        Paragraph(f"{label} no. {receipt.receipt_number}", styles["muted"]),
         Spacer(1, 14),
-        _detail_table(
-            [
-                ("Customer", application.full_name),
-                ("Customer reference", customer.customer_code),
-                ("Application", application.application_number),
-                (
-                    "Service",
-                    f"{translate(application.visa_type.country.name)} "
-                    f"{translate(application.visa_type.name)}",
-                ),
-                ("Payment method", payment.get_method_display()),
-                ("Payment date", payment.paid_at.strftime("%d %B %Y")),
-                ("Reference", payment.reference or "—"),
-            ],
-            styles,
-        ),
+        _detail_table(rows, styles),
         Spacer(1, 16),
     ]
 
@@ -252,7 +266,10 @@ def render_receipt(receipt):
     amount_table = Table(
         [
             [
-                Paragraph("<b>Amount paid</b>", styles["body"]),
+                Paragraph(
+                    "<b>Amount due</b>" if is_bill else "<b>Amount paid</b>",
+                    styles["body"],
+                ),
                 Paragraph(
                     f"<b>{payment.amount} {payment.currency}</b>",
                     ParagraphStyle(
@@ -296,12 +313,22 @@ def render_receipt(receipt):
         story += [Spacer(1, 12), Paragraph("Note", styles["heading"]),
                   Paragraph(payment.note, styles["body"])]
 
-    story += [
-        Spacer(1, 22),
-        Paragraph("Thank you for your payment.", styles["centre"]),
-    ]
+    if is_bill:
+        story += [
+            Spacer(1, 22),
+            Paragraph(
+                "Please upload your payment slip in the customer portal once "
+                "you have paid, so we can confirm it.",
+                styles["centre"],
+            ),
+        ]
+    else:
+        story += [
+            Spacer(1, 22),
+            Paragraph("Thank you for your payment.", styles["centre"]),
+        ]
 
-    return _build(story, f"Receipt {receipt.receipt_number}")
+    return _build(story, f"{label} {receipt.receipt_number}")
 
 
 def render_official_document(document):

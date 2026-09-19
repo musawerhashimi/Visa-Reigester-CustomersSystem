@@ -70,13 +70,13 @@ class RequiredDocumentWriteSerializer(serializers.ModelSerializer):
 
 
 class VisaTypeBriefSerializer(serializers.ModelSerializer):
-    """Nested inside applications, where only the label is needed."""
+    """Nested inside applications: the label, plus the fee staff bill for."""
 
     country = CountrySerializer(read_only=True)
 
     class Meta:
         model = VisaType
-        fields = ("id", "slug", "name", "country")
+        fields = ("id", "slug", "name", "country", "fee_amount", "fee_currency")
 
 
 class VisaTypeSerializer(

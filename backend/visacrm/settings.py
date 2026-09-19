@@ -188,6 +188,10 @@ EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
 COMPANY_NOTIFICATION_EMAIL = os.getenv("COMPANY_NOTIFICATION_EMAIL", "")
 
+# Where the customer-facing site lives, so email can link back to it. Email is
+# read away from the app, so a bare "see the portal" is a dead end without it.
+SITE_URL = os.getenv("SITE_URL", "http://localhost:5173").rstrip("/")
+
 # Uploaded documents: 10 MB cap, and only formats staff can actually review.
 MAX_UPLOAD_SIZE_BYTES = int(os.getenv("MAX_UPLOAD_SIZE_BYTES", str(10 * 1024 * 1024)))
 ALLOWED_UPLOAD_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".webp")

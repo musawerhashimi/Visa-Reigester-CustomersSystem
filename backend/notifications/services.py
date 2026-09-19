@@ -33,6 +33,9 @@ def serialize(notification):
         "title": notification.title,
         "message": notification.message,
         "reference_number": notification.reference_number,
+        # The application this concerns, so a page already open on it can
+        # refresh itself rather than waiting for the user to reload.
+        "application": notification.application_id,
         "link": notification.link,
         "is_read": notification.is_read,
         "play_sound": notification.play_sound,

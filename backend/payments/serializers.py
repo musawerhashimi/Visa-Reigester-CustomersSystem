@@ -9,6 +9,9 @@ from .models import OfficialDocument, Payment, Receipt
 
 class ReceiptSerializer(serializers.ModelSerializer):
     download_url = serializers.SerializerMethodField()
+    # Whether this is a request for money or proof of it, so the portal can
+    # label it without re-deriving the rule.
+    is_bill = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Receipt
@@ -18,6 +21,7 @@ class ReceiptSerializer(serializers.ModelSerializer):
             "application",
             "download_url",
             "is_available_to_customer",
+            "is_bill",
             "created_at",
         )
         read_only_fields = fields
@@ -34,6 +38,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         source="application.application_number", read_only=True
     )
     customer_name = serializers.SerializerMethodField()
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
 
     class Meta:
         model = Payment
@@ -46,6 +51,9 @@ class PaymentSerializer(serializers.ModelSerializer):
             "currency",
             "method",
             "status",
+            "kind",
+            "kind_label",
+            "card_number",
             "paid_at",
             "reference",
             "note",
@@ -53,7 +61,13 @@ class PaymentSerializer(serializers.ModelSerializer):
             "receipt",
             "created_at",
         )
-        read_only_fields = ("id", "receipt", "recorded_by_name", "created_at")
+        read_only_fields = (
+            "id",
+            "receipt",
+            "recorded_by_name",
+            "kind_label",
+            "created_at",
+        )
 
     def get_recorded_by_name(self, obj):
         """Internal detail: who took the money is not shown to the customer."""
@@ -69,24 +83,22 @@ class PaymentSerializer(serializers.ModelSerializer):
         return user.get_full_name() or user.email
 
 
-class RecordPaymentSerializer(serializers.Serializer):
-    """Staff recording a payment the customer made offline."""
+class BillFeeSerializer(serializers.Serializer):
+    """Staff billing a customer for one of the two fees."""
 
     application = serializers.IntegerField()
+    kind = serializers.ChoiceField(
+        choices=[
+            (Payment.Kind.REGISTRATION, "Registration Fee"),
+            (Payment.Kind.VISA_FEE, "Visa Processing Fee"),
+        ]
+    )
     amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, min_value=Decimal("0.01")
     )
     currency = serializers.CharField(max_length=3, default="EUR")
-    method = serializers.ChoiceField(
-        choices=Payment.Method.choices, default=Payment.Method.CASH
-    )
-    status = serializers.ChoiceField(
-        choices=Payment.Status.choices, default=Payment.Status.PAID
-    )
-    paid_at = serializers.DateTimeField(required=False)
-    reference = serializers.CharField(required=False, allow_blank=True, default="")
+    card_number = serializers.CharField(max_length=64)
     note = serializers.CharField(required=False, allow_blank=True, default="")
-    issue_receipt = serializers.BooleanField(default=True)
 
 
 class OfficialDocumentSerializer(serializers.ModelSerializer):

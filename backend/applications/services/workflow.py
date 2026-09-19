@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from accounts import permissions as perms
 from audit import services as audit
+from branches.scoping import office_email
 from emails import services as email_service
 from emails.models import EmailTemplate
 from notifications import services as notify_service
@@ -444,9 +445,7 @@ def _send_company_email(application):
     its own inbox is used when it has one; the company address is the fallback
     for branches that have not set one.
     """
-    recipient = application.branch.email or getattr(
-        settings, "COMPANY_NOTIFICATION_EMAIL", ""
-    )
+    recipient = office_email(application)
     if not recipient:
         return None
 

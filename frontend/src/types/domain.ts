@@ -27,6 +27,15 @@ export interface Branch {
   phone: string;
   email: string;
   is_active: boolean;
+  /** The address customers see and reply to on this branch's mail. */
+  sending_email: string;
+  smtp_host: string;
+  smtp_port: number | null;
+  smtp_username: string;
+  /** True when a password is stored; the password itself is never returned. */
+  smtp_password_set: boolean;
+  smtp_use_tls: boolean;
+  smtp_enabled: boolean;
   application_count: number;
   staff_count: number;
   created_at: string;
@@ -136,7 +145,10 @@ export interface VisaType {
 }
 
 /** Visa identity as nested inside an application row. */
-export type VisaTypeBrief = Pick<VisaType, "id" | "slug" | "name"> & {
+export type VisaTypeBrief = Pick<
+  VisaType,
+  "id" | "slug" | "name" | "fee_amount" | "fee_currency"
+> & {
   country: Country;
 };
 
@@ -287,6 +299,8 @@ export interface Notification {
   category: string;
   title: string;
   message: string;
+  /** The application this concerns, so an open page can refresh itself. */
+  application: number | null;
   reference_number: string;
   link: string;
   is_read: boolean;
@@ -300,6 +314,8 @@ export interface Receipt {
   application: number;
   download_url: string;
   is_available_to_customer: boolean;
+  /** True while the payment is unpaid: a request for money, not proof of it. */
+  is_bill: boolean;
   created_at: string;
 }
 
@@ -312,6 +328,11 @@ export interface Payment {
   currency: string;
   method: "cash" | "bank_transfer" | "other";
   status: "unpaid" | "partial" | "paid" | "refunded";
+  /** Which fee this is, so each can be billed only once. */
+  kind: "registration" | "visa_fee" | "other";
+  kind_label: string;
+  /** The account the customer pays into, printed on their bill. */
+  card_number: string;
   paid_at: string;
   reference: string;
   note: string;

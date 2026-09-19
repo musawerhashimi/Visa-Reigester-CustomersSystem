@@ -36,6 +36,8 @@ def record_payment(
     paid_at=None,
     reference="",
     note="",
+    kind=Payment.Kind.OTHER,
+    card_number="",
     actor=None,
     request=None,
     issue_receipt=True,
@@ -54,6 +56,8 @@ def record_payment(
         paid_at=paid_at or timezone.now(),
         reference=reference,
         note=note,
+        kind=kind,
+        card_number=card_number,
         recorded_by=actor,
     )
 
@@ -93,8 +97,14 @@ def record_payment(
 
 
 @transaction.atomic
-def issue_receipt_for(payment, *, actor=None, request=None):
-    """Generate the receipt PDF for a payment, once."""
+def issue_receipt_for(payment, *, actor=None, request=None, send_email=True):
+    """Generate the PDF for a payment, once.
+
+    Produces a bill while the payment is unpaid and a receipt once it is
+    settled, so the same call serves both ends of the exchange. The document
+    reaches the customer three ways — portal, notification and email — because
+    a bill nobody sees is a bill nobody pays.
+    """
     existing = Receipt.objects.filter(payment=payment).first()
     if existing is not None:
         return existing
@@ -109,10 +119,15 @@ def issue_receipt_for(payment, *, actor=None, request=None):
     buffer = pdf.render_receipt(receipt)
     receipt.pdf.save(f"{receipt.receipt_number}.pdf", ContentFile(buffer.read()), save=True)
 
+    is_bill = receipt.is_bill
+    label = "Bill" if is_bill else "Receipt"
+    fee = payment.get_kind_display()
+
     workflow.add_timeline(
         payment.application,
-        action="Receipt issued",
-        description=f"Receipt {receipt.receipt_number} is available in the portal.",
+        action=f"{label} issued",
+        description=f"{fee}: {label.lower()} {receipt.receipt_number} "
+        f"for {payment.amount} {payment.currency}.",
         actor=actor,
     )
 
@@ -128,13 +143,257 @@ def issue_receipt_for(payment, *, actor=None, request=None):
     notify_service.notify(
         payment.application.customer.user,
         category=Notification.Category.RECEIPT_AVAILABLE,
-        title="Receipt available",
-        message=f"Receipt {receipt.receipt_number} is ready to download.",
+        title=f"{fee} {label.lower()} available",
+        message=(
+            f"{payment.amount} {payment.currency} is due — {receipt.receipt_number}."
+            if is_bill
+            else f"{label} {receipt.receipt_number} is ready to download."
+        ),
+        application=payment.application,
+        link=f"/portal/applications/{payment.application.pk}",
+        play_sound=is_bill,
+    )
+
+    if send_email:
+        _email_receipt(receipt, actor=actor)
+
+    return receipt
+
+
+def _email_receipt(receipt, *, actor=None):
+    """Send the bill or receipt to the customer as a PDF attachment."""
+    application = receipt.application
+    recipient = application.email or application.customer.user.email
+    if not recipient:
+        return None
+
+    try:
+        receipt.pdf.open("rb")
+        content = receipt.pdf.read()
+        receipt.pdf.close()
+    except (FileNotFoundError, ValueError):
+        # The portal copy and notification still stand; a missing file must
+        # not raise out of the issuing transaction.
+        return None
+
+    payment = receipt.payment
+    fee = payment.get_kind_display()
+    label = "Bill" if receipt.is_bill else "Receipt"
+
+    body = [
+        f"Dear {application.full_name},",
+        "",
+        (
+            f"Please find attached the {fee.lower()} bill for your application "
+            f"{application.application_number}."
+            if receipt.is_bill
+            else f"Please find attached your {fee.lower()} receipt for "
+            f"application {application.application_number}."
+        ),
+        "",
+        f"{label} number: {receipt.receipt_number}",
+        f"Amount: {payment.amount} {payment.currency}",
+    ]
+    if receipt.is_bill and payment.card_number:
+        body += [
+            f"Please pay into: {payment.card_number}",
+            "",
+            "Once you have paid, upload your payment slip here so we can "
+            "confirm it:",
+            email_service.site_url(f"/portal/applications/{application.pk}"),
+        ]
+    else:
+        body += [
+            "",
+            "You can see this and your other documents here:",
+            email_service.site_url(f"/portal/applications/{application.pk}"),
+        ]
+
+    return email_service.send_email(
+        to_email=recipient,
+        subject=f"{fee} {label.lower()} – {receipt.receipt_number}",
+        body="\n".join(body),
+        application=application,
+        attachments=[
+            {
+                "filename": receipt.pdf.name.split("/")[-1],
+                "content": content,
+                "mimetype": "application/pdf",
+            }
+        ],
+    )
+
+
+@transaction.atomic
+def bill_fee(
+    application,
+    *,
+    kind,
+    amount,
+    currency="EUR",
+    card_number="",
+    note="",
+    actor=None,
+    request=None,
+):
+    """Bill a customer for one of the two fees and send them the paperwork.
+
+    Each fee is billed once per application: a second registration bill would
+    leave the customer holding two documents for the same money.
+    """
+    if amount is None or amount <= 0:
+        raise PaymentError("The amount must be greater than zero.")
+
+    if Payment.objects.filter(application=application, kind=kind).exists():
+        label = dict(Payment.Kind.choices).get(kind, kind)
+        raise PaymentError(f"The {label.lower()} has already been billed.")
+
+    payment = Payment.objects.create(
+        application=application,
+        customer=application.customer,
+        amount=amount,
+        currency=currency,
+        method=Payment.Method.BANK_TRANSFER,
+        # A bill is a request for money, so it starts unpaid and is settled
+        # once the customer's proof has been checked.
+        status=Payment.Status.UNPAID,
+        kind=kind,
+        card_number=card_number,
+        note=note,
+        recorded_by=actor,
+    )
+
+    audit.record(
+        action="create",
+        module="payments",
+        actor=actor,
+        record_id=payment.pk,
+        record_label=f"{amount} {currency}",
+        description=f"{payment.get_kind_display()} billed on "
+        f"{application.application_number}.",
+        request=request,
+    )
+
+    receipt = issue_receipt_for(payment, actor=actor, request=request)
+    return payment, receipt
+
+
+@transaction.atomic
+def settle_payment(payment, *, actor=None, request=None):
+    """Mark a billed payment as paid, once its proof has been checked."""
+    if payment.status == Payment.Status.PAID:
+        raise PaymentError("This payment is already settled.")
+
+    payment.status = Payment.Status.PAID
+    payment.paid_at = timezone.now()
+    payment.save(update_fields=["status", "paid_at", "updated_at"])
+
+    workflow.add_timeline(
+        payment.application,
+        action="Payment confirmed",
+        description=f"{payment.get_kind_display()}: {payment.amount} "
+        f"{payment.currency} received.",
+        actor=actor,
+    )
+
+    audit.record(
+        action="update",
+        module="payments",
+        actor=actor,
+        record_id=payment.pk,
+        record_label=f"{payment.amount} {payment.currency}",
+        field_name="status",
+        old_value=Payment.Status.UNPAID,
+        new_value=Payment.Status.PAID,
+        request=request,
+    )
+
+    notify_service.notify(
+        payment.application.customer.user,
+        category=Notification.Category.PAYMENT,
+        title="Payment confirmed",
+        message=f"We have confirmed your {payment.get_kind_display().lower()} "
+        f"of {payment.amount} {payment.currency}.",
         application=payment.application,
         link=f"/portal/applications/{payment.application.pk}",
     )
 
+    # The document was written as a bill while the money was owed. Now that it
+    # has arrived the customer needs a receipt, not a demand for payment, so
+    # the PDF is rebuilt and sent as the confirmation.
+    receipt = Receipt.objects.filter(payment=payment).first()
+    if receipt is not None:
+        _regenerate_receipt_pdf(receipt)
+        _email_payment_confirmed(receipt)
+
+    return payment
+
+
+def _regenerate_receipt_pdf(receipt):
+    """Rewrite a receipt's PDF against the payment's current state."""
+    # The related payment is cached from when it was unpaid, so the template
+    # would otherwise render the old wording.
+    receipt.refresh_from_db()
+    buffer = pdf.render_receipt(receipt)
+
+    old_name = receipt.pdf.name
+    receipt.pdf.save(
+        f"{receipt.receipt_number}.pdf", ContentFile(buffer.read()), save=True
+    )
+    # Storage suffixes a new name rather than overwriting, so the superseded
+    # bill would linger on disk unreferenced.
+    if old_name and old_name != receipt.pdf.name:
+        receipt.pdf.storage.delete(old_name)
     return receipt
+
+
+def _email_payment_confirmed(receipt):
+    """Tell the customer their money arrived, with the receipt attached."""
+    application = receipt.application
+    recipient = application.email or application.customer.user.email
+    if not recipient:
+        return None
+
+    try:
+        receipt.pdf.open("rb")
+        content = receipt.pdf.read()
+        receipt.pdf.close()
+    except (FileNotFoundError, ValueError):
+        # The portal copy and notification still stand; a missing file must
+        # not raise out of the confirming transaction.
+        return None
+
+    payment = receipt.payment
+    fee = payment.get_kind_display()
+
+    body = "\n".join(
+        [
+            f"Dear {application.full_name},",
+            "",
+            f"We have received your {fee.lower()} of "
+            f"{payment.amount} {payment.currency}. Thank you.",
+            "",
+            f"Your receipt {receipt.receipt_number} is attached, and is also "
+            "available in your account:",
+            email_service.site_url(f"/portal/applications/{application.pk}"),
+            "",
+            f"Application: {application.application_number}",
+        ]
+    )
+
+    return email_service.send_email(
+        to_email=recipient,
+        subject=f"Payment confirmed – {receipt.receipt_number}",
+        body=body,
+        application=application,
+        attachments=[
+            {
+                "filename": receipt.pdf.name.split("/")[-1],
+                "content": content,
+                "mimetype": "application/pdf",
+            }
+        ],
+    )
 
 
 @transaction.atomic

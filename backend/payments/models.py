@@ -23,6 +23,19 @@ class Payment(TimeStampedModel):
         PAID = "paid", "Paid"
         REFUNDED = "refunded", "Refunded"
 
+    class Kind(models.TextChoices):
+        """What the money is for.
+
+        The two fees are charged at different points in the workflow — the
+        registration fee once documents arrive, the visa fee at verification —
+        so they are distinguished here rather than in a free-text note, and
+        each can be billed only once per application.
+        """
+
+        REGISTRATION = "registration", "Registration Fee"
+        VISA_FEE = "visa_fee", "Visa Processing Fee"
+        OTHER = "other", "Other"
+
     application = models.ForeignKey(
         "applications.Application", on_delete=models.PROTECT, related_name="payments"
     )
@@ -35,6 +48,18 @@ class Payment(TimeStampedModel):
     method = models.CharField(max_length=20, choices=Method.choices, default=Method.CASH)
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.PAID, db_index=True
+    )
+    kind = models.CharField(
+        max_length=20, choices=Kind.choices, default=Kind.OTHER, db_index=True
+    )
+
+    # The account the customer pays into, printed on the bill so they know
+    # where to send the money. A bank or transfer reference, never a card
+    # number: storing those would put the company under PCI-DSS.
+    card_number = models.CharField(
+        max_length=64,
+        blank=True,
+        verbose_name="Account / card number to pay into",
     )
 
     paid_at = models.DateTimeField(default=timezone.now, db_index=True)
@@ -52,7 +77,12 @@ class Payment(TimeStampedModel):
 
 
 class Receipt(TimeStampedModel):
-    """Generated document the customer can view, download, or be emailed."""
+    """Generated document the customer can view, download, or be emailed.
+
+    Covers both halves of the exchange: a bill asking for money, and a receipt
+    confirming it arrived. Which one it is follows the payment's status, so the
+    document cannot claim to be paid while the payment says otherwise.
+    """
 
     receipt_number = models.CharField(
         max_length=30, unique=True, blank=True, db_index=True
@@ -75,6 +105,11 @@ class Receipt(TimeStampedModel):
 
     def __str__(self):
         return self.receipt_number
+
+    @property
+    def is_bill(self):
+        """Unpaid means this is a request for money, not proof of it."""
+        return self.payment.status != Payment.Status.PAID
 
     def save(self, *args, **kwargs):
         if not self.receipt_number:

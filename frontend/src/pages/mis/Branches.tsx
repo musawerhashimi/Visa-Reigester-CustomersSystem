@@ -18,6 +18,13 @@ type Draft = {
   phone: string;
   email: string;
   is_active: boolean;
+  sending_email: string;
+  smtp_host: string;
+  smtp_port: string;
+  smtp_username: string;
+  smtp_password: string;
+  smtp_use_tls: boolean;
+  smtp_enabled: boolean;
 };
 
 const EMPTY: Draft = {
@@ -29,6 +36,13 @@ const EMPTY: Draft = {
   phone: "",
   email: "",
   is_active: true,
+  sending_email: "",
+  smtp_host: "",
+  smtp_port: "587",
+  smtp_username: "",
+  smtp_password: "",
+  smtp_use_tls: true,
+  smtp_enabled: false,
 };
 
 /**
@@ -232,6 +246,14 @@ function BranchDialog({
           phone: branch.phone,
           email: branch.email,
           is_active: branch.is_active,
+          sending_email: branch.sending_email,
+          smtp_host: branch.smtp_host,
+          smtp_port: branch.smtp_port ? String(branch.smtp_port) : "587",
+          smtp_username: branch.smtp_username,
+          // Left blank so an unchanged form keeps the stored password.
+          smtp_password: "",
+          smtp_use_tls: branch.smtp_use_tls,
+          smtp_enabled: branch.smtp_enabled,
         }
       : EMPTY,
   );
@@ -239,11 +261,23 @@ function BranchDialog({
 
   const save = useMutation({
     mutationFn: async () => {
+      const { smtp_password, smtp_port, ...rest } = form;
+      const payload: Record<string, unknown> = {
+        ...rest,
+        smtp_port: smtp_port ? Number(smtp_port) : null,
+      };
+      // An omitted password keeps the stored one; sending "" would clear it,
+      // which is not what leaving the field untouched should mean.
+      if (smtp_password) payload.smtp_password = smtp_password;
+
       if (isNew) {
-        const { data } = await api.post<Branch>("/branches/", form);
+        const { data } = await api.post<Branch>("/branches/", payload);
         return data;
       }
-      const { data } = await api.patch<Branch>(`/branches/${branch.id}/`, form);
+      const { data } = await api.patch<Branch>(
+        `/branches/${branch.id}/`,
+        payload,
+      );
       return data;
     },
     onSuccess: onSaved,
@@ -337,6 +371,86 @@ function BranchDialog({
               onChange={(event) => set("email", event.target.value)}
             />
           </div>
+
+          <fieldset className="rounded-lg border border-ink-200 p-4">
+            <legend className="px-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+              Email
+            </legend>
+
+            <Field
+              label="Send customer email from"
+              type="email"
+              hint="What customers see and reply to. Blank uses the company address."
+              value={form.sending_email}
+              onChange={(event) => set("sending_email", event.target.value)}
+            />
+
+            <label className="mt-4 flex items-center gap-2.5 text-sm text-ink-700">
+              <input
+                type="checkbox"
+                checked={form.smtp_enabled}
+                onChange={(event) => set("smtp_enabled", event.target.checked)}
+                className="size-4 rounded text-brand-600 focus:ring-brand-500/30"
+              />
+              This branch has its own mail server
+            </label>
+            <p className="mt-1 text-xs text-ink-500">
+              Leave off to send through the company mail server.
+            </p>
+
+            {form.smtp_enabled && (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Mail server"
+                      required
+                      hint="e.g. smtp.gmail.com"
+                      value={form.smtp_host}
+                      onChange={(event) => set("smtp_host", event.target.value)}
+                    />
+                  </div>
+                  <Field
+                    label="Port"
+                    type="number"
+                    hint="587 or 465"
+                    value={form.smtp_port}
+                    onChange={(event) => set("smtp_port", event.target.value)}
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Username"
+                    value={form.smtp_username}
+                    onChange={(event) => set("smtp_username", event.target.value)}
+                  />
+                  <Field
+                    label="Password"
+                    type="password"
+                    autoComplete="new-password"
+                    hint={
+                      branch?.smtp_password_set
+                        ? "Saved. Leave blank to keep it."
+                        : "For Gmail, use an app password."
+                    }
+                    value={form.smtp_password}
+                    onChange={(event) => set("smtp_password", event.target.value)}
+                  />
+                </div>
+
+                <label className="flex items-center gap-2.5 text-sm text-ink-700">
+                  <input
+                    type="checkbox"
+                    checked={form.smtp_use_tls}
+                    onChange={(event) => set("smtp_use_tls", event.target.checked)}
+                    className="size-4 rounded text-brand-600 focus:ring-brand-500/30"
+                  />
+                  Use TLS (leave on for port 587)
+                </label>
+              </div>
+            )}
+          </fieldset>
 
           <label className="flex items-center gap-2.5 text-sm text-ink-700">
             <input

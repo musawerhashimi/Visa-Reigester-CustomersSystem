@@ -72,24 +72,12 @@ class PaymentTests(TestCase):
 
     # --- recording --------------------------------------------------------
 
-    def test_recording_a_payment_issues_a_receipt(self):
-        response = self.client_for(self.admin).post(
-            "/api/payments/record/",
-            {
-                "application": self.application.pk,
-                "amount": "500.00",
-                "currency": "EUR",
-                "method": "cash",
-            },
-            format="json",
+    def test_issuing_a_receipt_numbers_it_and_writes_a_pdf(self):
+        payment, receipt = services.record_payment(
+            self.application, amount=Decimal("500.00"), actor=self.admin
         )
-
-        self.assertEqual(response.status_code, 201)
-        payment = Payment.objects.get()
         self.assertEqual(payment.amount, Decimal("500.00"))
         self.assertEqual(payment.recorded_by, self.admin)
-
-        receipt = Receipt.objects.get()
         self.assertRegex(receipt.receipt_number, r"^RCPT-\d{4}-\d{6}$")
         self.assertTrue(receipt.pdf.name.endswith(".pdf"))
 
@@ -157,22 +145,6 @@ class PaymentTests(TestCase):
                 category=Notification.Category.RECEIPT_AVAILABLE,
             ).exists()
         )
-
-    def test_officer_without_manage_permission_cannot_record(self):
-        response = self.client_for(self.officer).post(
-            "/api/payments/record/",
-            {"application": self.application.pk, "amount": "500.00"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 403)
-
-    def test_customer_cannot_record_their_own_payment(self):
-        response = self.client_for(self.customer_user).post(
-            "/api/payments/record/",
-            {"application": self.application.pk, "amount": "1.00"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 403)
 
     # --- access -----------------------------------------------------------
 
@@ -557,3 +529,385 @@ def _peel(raw):
         except zlib.error:
             continue
     yield raw
+
+
+@override_settings(
+    MEDIA_ROOT="/tmp/visacrm-billing-test-media",
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
+class FeeBillingTests(TestCase):
+    """The two fees: billing the customer, and settling once they pay."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.core.management import call_command
+
+        call_command("seed_demo", verbosity=0)
+        cls.visa = VisaType.objects.get(slug="germany-student-visa")
+
+        cls.admin = User.objects.create_user(
+            email="admin@bill.test",
+            password="StrongPass2026!",
+            role=User.Role.SUPER_ADMIN,
+        )
+        cls.customer_user = User.objects.create_user(
+            email="ahmad@bill.test",
+            password="StrongPass2026!",
+            first_name="Ahmad",
+            last_name="Khan",
+        )
+        cls.profile = CustomerProfile.objects.create(user=cls.customer_user)
+
+    def setUp(self):
+        self.application = Application.objects.create(
+            customer=self.profile,
+            visa_type=self.visa,
+            first_name="Ahmad",
+            last_name="Khan",
+            email="ahmad@bill.test",
+        )
+
+    def client_for(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client
+
+    def bill(self, kind="registration", amount="150.00", **extra):
+        payload = {
+            "application": self.application.pk,
+            "kind": kind,
+            "amount": amount,
+            "currency": "EUR",
+            "card_number": "TR33 0006 1005 1978 6457 8413 26",
+            **extra,
+        }
+        return self.client_for(self.admin).post(
+            "/api/payments/bill/", payload, format="json"
+        )
+
+    def test_billing_creates_an_unpaid_payment_and_a_bill(self):
+        response = self.bill()
+        self.assertEqual(response.status_code, 201)
+
+        payment = Payment.objects.get()
+        self.assertEqual(payment.kind, Payment.Kind.REGISTRATION)
+        self.assertEqual(payment.amount, Decimal("150.00"))
+        # A bill is a request for money, so it must not claim to be settled.
+        self.assertEqual(payment.status, Payment.Status.UNPAID)
+
+        receipt = Receipt.objects.get()
+        self.assertTrue(receipt.is_bill)
+        self.assertTrue(receipt.pdf)
+
+    def test_the_bill_reaches_the_customer_by_email_with_the_pdf(self):
+        from django.core import mail
+
+        mail.outbox.clear()
+        self.bill()
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertIn("ahmad@bill.test", message.to)
+        # The PDF must travel with it; a link alone strands an offline customer.
+        self.assertEqual(len(message.attachments), 1)
+        self.assertTrue(message.attachments[0][0].endswith(".pdf"))
+
+    def test_the_bill_names_the_account_to_pay_into(self):
+        self.bill()
+        payment = Payment.objects.get()
+        self.assertIn("TR33", payment.card_number)
+
+    def test_the_customer_is_notified_in_the_portal(self):
+        self.bill()
+        alert = Notification.objects.filter(
+            recipient=self.customer_user,
+            category=Notification.Category.RECEIPT_AVAILABLE,
+        ).first()
+        self.assertIsNotNone(alert)
+
+    def test_the_same_fee_cannot_be_billed_twice(self):
+        """Two bills for one fee would leave the customer unsure what is owed."""
+        self.assertEqual(self.bill().status_code, 201)
+
+        second = self.bill()
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(Payment.objects.count(), 1)
+
+    def test_both_fees_can_be_billed_on_one_application(self):
+        self.assertEqual(self.bill(kind="registration").status_code, 201)
+        self.assertEqual(
+            self.bill(kind="visa_fee", amount="800.00").status_code, 201
+        )
+        self.assertEqual(Payment.objects.count(), 2)
+
+    def test_settling_marks_the_payment_paid(self):
+        self.bill()
+        payment = Payment.objects.get()
+
+        response = self.client_for(self.admin).post(
+            f"/api/payments/{payment.pk}/settle/", {}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.PAID)
+
+    def test_settling_twice_is_refused(self):
+        self.bill()
+        payment = Payment.objects.get()
+        self.client_for(self.admin).post(f"/api/payments/{payment.pk}/settle/", {})
+
+        again = self.client_for(self.admin).post(
+            f"/api/payments/{payment.pk}/settle/", {}
+        )
+        self.assertEqual(again.status_code, 400)
+
+    def test_confirming_emails_the_customer_with_the_receipt(self):
+        from django.core import mail
+
+        self.bill()
+        payment = Payment.objects.get()
+
+        mail.outbox.clear()
+        self.client_for(self.admin).post(f"/api/payments/{payment.pk}/settle/", {})
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertIn("ahmad@bill.test", message.to)
+        self.assertIn("Payment confirmed", message.subject)
+        # The receipt travels with it, not just a link.
+        self.assertEqual(len(message.attachments), 1)
+
+    def test_the_document_stops_calling_itself_a_bill_once_paid(self):
+        """The customer keeps this file; it must not still demand payment."""
+        self.bill()
+        payment = Payment.objects.get()
+        receipt = Receipt.objects.get()
+
+        # The body text is compressed inside the PDF stream, but the document
+        # title is written to the metadata in clear, and it names which of the
+        # two this is.
+        from . import pdf as pdf_module
+
+        self.assertTrue(receipt.is_bill)
+        before = pdf_module.render_receipt(receipt).read()
+        self.assertIn(b"Title (Bill ", before)
+
+        self.client_for(self.admin).post(f"/api/payments/{payment.pk}/settle/", {})
+
+        receipt.refresh_from_db()
+        self.assertFalse(receipt.is_bill)
+        after = pdf_module.render_receipt(receipt).read()
+        self.assertIn(b"Title (Receipt ", after)
+        self.assertNotIn(b"Title (Bill ", after)
+
+    def test_the_stored_file_is_rewritten_when_the_payment_is_confirmed(self):
+        """A stale bill on disk would keep demanding money already paid."""
+        self.bill()
+        payment = Payment.objects.get()
+        receipt = Receipt.objects.get()
+        original = receipt.pdf.name
+
+        self.client_for(self.admin).post(f"/api/payments/{payment.pk}/settle/", {})
+
+        receipt.refresh_from_db()
+        self.assertTrue(receipt.pdf)
+        # Storage writes a new name, and the superseded bill is removed.
+        self.assertNotEqual(receipt.pdf.name, original)
+        self.assertFalse(receipt.pdf.storage.exists(original))
+
+    def test_the_portal_shows_the_document_as_a_receipt_once_paid(self):
+        self.bill()
+        payment = Payment.objects.get()
+        self.client_for(self.admin).post(f"/api/payments/{payment.pk}/settle/", {})
+
+        response = self.client_for(self.customer_user).get("/api/receipts/")
+        self.assertFalse(response.data["results"][0]["is_bill"])
+
+    def test_a_customer_cannot_bill_themselves(self):
+        response = self.client_for(self.customer_user).post(
+            "/api/payments/bill/",
+            {
+                "application": self.application.pk,
+                "kind": "registration",
+                "amount": "1.00",
+                "card_number": "X",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Payment.objects.count(), 0)
+
+    def test_the_customer_sees_their_bill_in_the_portal(self):
+        self.bill()
+        response = self.client_for(self.customer_user).get("/api/receipts/")
+        self.assertEqual(response.status_code, 200)
+        rows = response.data["results"]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["is_bill"])
+
+    def test_the_customer_can_upload_proof_of_payment(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from documents.models import Document, DocumentType
+
+        self.bill()
+        proof_type = DocumentType.objects.get(code="payment-proof")
+
+        response = self.client_for(self.customer_user).post(
+            f"/api/applications/{self.application.pk}/documents/",
+            {
+                "document_type_id": proof_type.pk,
+                "file": SimpleUploadedFile(
+                    "slip.pdf", b"%PDF-1.4 bank slip", "application/pdf"
+                ),
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(
+            Document.objects.filter(
+                application=self.application, document_type=proof_type
+            ).exists()
+        )
+
+
+@override_settings(
+    MEDIA_ROOT="/tmp/visacrm-slip-test-media",
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
+class PaymentSlipTests(TestCase):
+    """The slip a customer sends back must reach the branch that billed them."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.core.management import call_command
+
+        from branches.models import Branch
+
+        call_command("seed_demo", verbosity=0)
+        cls.visa = VisaType.objects.get(slug="germany-student-visa")
+
+        cls.general = Branch.objects.get(is_general=True)
+        cls.kabul = Branch.objects.create(name="Kabul", code="KBL")
+
+        cls.kabul_officer = User.objects.create_user(
+            email="kabul@slip.test",
+            password="StrongPass2026!",
+            role=User.Role.ADMIN,
+            branch=cls.kabul,
+        )
+        cls.other_officer = User.objects.create_user(
+            email="herat@slip.test",
+            password="StrongPass2026!",
+            role=User.Role.ADMIN,
+            branch=Branch.objects.create(name="Herat", code="HRT"),
+        )
+
+        cls.customer_user = User.objects.create_user(
+            email="ahmad@slip.test",
+            password="StrongPass2026!",
+            first_name="Ahmad",
+            last_name="Khan",
+        )
+        cls.profile = CustomerProfile.objects.create(user=cls.customer_user)
+
+    def setUp(self):
+        self.application = Application.objects.create(
+            customer=self.profile,
+            visa_type=self.visa,
+            branch=self.kabul,
+            first_name="Ahmad",
+            last_name="Khan",
+            email="ahmad@slip.test",
+        )
+
+    def upload_slip(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from documents.models import DocumentType
+
+        proof = DocumentType.objects.get(code="payment-proof")
+        client = APIClient()
+        client.force_authenticate(self.customer_user)
+        return client.post(
+            f"/api/applications/{self.application.pk}/documents/",
+            {
+                "document_type_id": proof.pk,
+                "file": SimpleUploadedFile("slip.pdf", b"%PDF-1.4 slip", "application/pdf"),
+            },
+            format="multipart",
+        )
+
+    def test_the_billing_branch_is_alerted_audibly(self):
+        """A slip is money arriving; it must not look like ordinary paperwork."""
+        self.assertEqual(self.upload_slip().status_code, 201)
+
+        alert = (
+            Notification.objects.filter(recipient=self.kabul_officer)
+            .order_by("-created_at")
+            .first()
+        )
+        self.assertIsNotNone(alert)
+        self.assertEqual(alert.title, "Payment slip received")
+        self.assertTrue(alert.play_sound)
+
+    def test_another_branch_is_not_alerted(self):
+        self.upload_slip()
+        self.assertFalse(
+            Notification.objects.filter(recipient=self.other_officer).exists()
+        )
+
+    def test_the_branch_can_see_the_slip(self):
+        self.upload_slip()
+
+        client = APIClient()
+        client.force_authenticate(self.kabul_officer)
+        response = client.get("/api/documents/", {"application": self.application.pk})
+
+        slips = [
+            row
+            for row in response.data["results"]
+            if row["document_type"]["code"] == "payment-proof"
+        ]
+        self.assertEqual(len(slips), 1)
+
+    def test_the_office_is_emailed_at_the_branch_address(self):
+        """Nobody may be watching the MIS when the money arrives."""
+        from django.core import mail
+
+        self.kabul.email = "kabul@office.test"
+        self.kabul.save(update_fields=["email"])
+
+        mail.outbox.clear()
+        self.upload_slip()
+
+        recipients = [address for message in mail.outbox for address in message.to]
+        self.assertIn("kabul@office.test", recipients)
+
+    @override_settings(COMPANY_NOTIFICATION_EMAIL="head@office.test")
+    def test_a_branch_without_an_inbox_falls_back_to_the_company(self):
+        from django.core import mail
+
+        self.assertEqual(self.kabul.email, "")
+
+        mail.outbox.clear()
+        self.upload_slip()
+
+        recipients = [address for message in mail.outbox for address in message.to]
+        self.assertIn("head@office.test", recipients)
+
+    def test_the_arrival_is_recorded_on_the_timeline(self):
+        self.upload_slip()
+        entries = self.application.timeline.values_list("action", flat=True)
+        self.assertIn("Payment slip received", entries)
+
+    def test_the_pushed_alert_names_the_application(self):
+        """The open page refreshes off this id; without it staff must reload."""
+        from notifications.services import serialize
+
+        self.upload_slip()
+        alert = (
+            Notification.objects.filter(recipient=self.kabul_officer)
+            .order_by("-created_at")
+            .first()
+        )
+        self.assertEqual(serialize(alert)["application"], self.application.pk)

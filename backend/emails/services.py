@@ -20,6 +20,34 @@ logger = logging.getLogger(__name__)
 PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 
 
+def site_url(path=""):
+    """An absolute link into the customer site.
+
+    Email is read outside the app, so a relative path is useless there: every
+    link a customer is given has to carry the host.
+    """
+    # Normalised here rather than only at import: the setting is typed by
+    # hand, and a trailing slash would otherwise produce "host//portal".
+    base = (getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    if not path:
+        return base
+    return f"{base}/{path.lstrip('/')}"
+
+
+def portal_links(application=None):
+    """The links worth offering a customer, ready for templates and bodies."""
+    links = {
+        "site_url": site_url(),
+        "portal_url": site_url("/portal"),
+        "login_url": site_url("/login"),
+        "visas_url": site_url("/visas"),
+        "contact_url": site_url("/contact"),
+    }
+    if application is not None:
+        links["application_url"] = site_url(f"/portal/applications/{application.pk}")
+    return links
+
+
 def build_context(*, application=None, customer=None, staff=None, extra=None):
     company = getattr(settings, "COMPANY_NAME", "VisaCare")
     context = {"company_name": company}
@@ -42,6 +70,9 @@ def build_context(*, application=None, customer=None, staff=None, extra=None):
 
     if staff is not None:
         context["staff_name"] = staff.get_full_name() or staff.email
+
+    # Available to every template, so staff can put a link in any of them.
+    context.update(portal_links(application))
 
     if extra:
         context.update(extra)
@@ -81,39 +112,51 @@ def _company():
         return None
 
 
-def sender_address():
+def sender_address(branch=None):
     """The From address for outgoing mail.
 
-    The office sets this in the MIS so customers see a real address rather
-    than the server's default; anything unset falls back to the environment.
+    A branch with its own address sends as itself, so a customer replying
+    reaches the office handling their application rather than head office.
+    Anything unset falls back to the company address, then the environment.
     """
+    if branch is not None and branch.sending_email:
+        return branch.sending_email
+
     info = _company()
     return (info.sending_email if info else "") or settings.DEFAULT_FROM_EMAIL
 
 
-def mail_connection():
+def mail_connection(branch=None):
     """A connection built from the mail server saved in the MIS.
 
-    Returns None when the office has not enabled SMTP there, which leaves
+    A branch running its own mailbox sends through it; otherwise the company
+    server is used. Returns None when neither has SMTP enabled, which leaves
     Django to use EMAIL_BACKEND as configured in the environment — so an
     install that was set up the old way is untouched.
     """
-    from django.core.mail import get_connection
+    if branch is not None and branch.has_own_mail_server:
+        return _connection_for(branch)
 
     info = _company()
     if not info or not info.smtp_enabled or not info.smtp_host:
         return None
+    return _connection_for(info)
+
+
+def _connection_for(config):
+    """Build an SMTP connection from anything carrying the smtp_* fields."""
+    from django.core.mail import get_connection
 
     return get_connection(
         backend="django.core.mail.backends.smtp.EmailBackend",
-        host=info.smtp_host,
-        port=info.smtp_port or 587,
-        username=info.smtp_username,
-        password=info.get_smtp_password(),
-        use_tls=info.smtp_use_tls,
+        host=config.smtp_host,
+        port=config.smtp_port or 587,
+        username=config.smtp_username,
+        password=config.get_smtp_password(),
+        use_tls=config.smtp_use_tls,
         # Django rejects having both on, and the pairing is conventional:
         # 587 with STARTTLS, 465 with implicit SSL.
-        use_ssl=not info.smtp_use_tls and (info.smtp_port == 465),
+        use_ssl=not config.smtp_use_tls and (config.smtp_port == 465),
     )
 
 
@@ -150,13 +193,15 @@ def send_email(
     )
 
     try:
+        # Mail about an application goes out as the branch handling it.
+        branch = application.branch if application is not None else None
         message = EmailMessage(
             subject=subject,
             body=body,
-            from_email=sender_address(),
+            from_email=sender_address(branch),
             to=[to_email],
             cc=cc or None,
-            connection=mail_connection(),
+            connection=mail_connection(branch),
         )
         for attachment in attachments or []:
             message.attach(

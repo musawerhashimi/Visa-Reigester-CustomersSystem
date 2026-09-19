@@ -29,10 +29,42 @@ export function NotificationBell() {
 
   // Live updates. A pushed notification refreshes the list rather than being
   // spliced in, so the badge count stays consistent with the server.
+  //
+  // It also refreshes the work behind the alert. Being told a payment slip
+  // arrived while the page still shows none is worse than not being told:
+  // the staff member reloads to find out what changed.
   useEffect(() => {
     notificationSocket.connect();
     const unsubscribe = notificationSocket.subscribe((notification) => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
+      if (notification.application) {
+        for (const key of [
+          "application",
+          "documents",
+          "payment-slips",
+          "payments",
+          "official-documents",
+          "emails",
+        ]) {
+          void queryClient.invalidateQueries({
+            queryKey: ["mis", key, notification.application],
+          });
+        }
+      }
+
+      // The lists that are not keyed by one application — the queue, the
+      // review pile, the dashboard counts — change too. A prefix match covers
+      // their paged and filtered variants.
+      for (const key of [
+        "applications",
+        "documents",
+        "count",
+        "recent-applications",
+      ]) {
+        void queryClient.invalidateQueries({ queryKey: ["mis", key] });
+      }
+
       if (notification.play_sound) playAlertTone();
     });
     return () => {

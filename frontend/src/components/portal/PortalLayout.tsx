@@ -54,6 +54,27 @@ export function PortalLayout() {
     notificationSocket.connect();
     const unsubscribe = notificationSocket.subscribe((notification) => {
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+
+      // A bill or a decision arriving must appear on the page the customer is
+      // already looking at, not only after they reload it.
+      if (notification.application) {
+        for (const key of [
+          "application",
+          "payments",
+          "payment-proof",
+          "official-documents",
+          "unread",
+        ]) {
+          void queryClient.invalidateQueries({
+            queryKey: ["portal", key, notification.application],
+          });
+        }
+      }
+
+      for (const key of ["applications", "notifications", "unread-count"]) {
+        void queryClient.invalidateQueries({ queryKey: ["portal", key] });
+      }
+
       if (notification.play_sound) playAlertTone();
     });
     return () => {

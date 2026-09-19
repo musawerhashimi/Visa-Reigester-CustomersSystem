@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 import {
   mediaUrl,
   usePublicContent,
+  type BannerItem,
   type NewsArticle,
   type TestimonialItem,
 } from "@/lib/cms";
@@ -31,6 +32,33 @@ const STATS = [
   { icon: BadgeCheck, value: "720", key: "home.statsApproved" },
   { icon: Globe2, value: "24", key: "home.statsCountries" },
   { icon: Clock, value: "12", key: "home.statsYears" },
+] as const;
+
+/** What applying actually involves, for someone who has never done it. */
+const HOW_IT_WORKS = [
+  {
+    title: "Choose your visa and office",
+    body: "Pick the visa you need and the branch that will handle it.",
+  },
+  {
+    title: "Upload your documents",
+    body: "We tell you exactly which files are required before you start.",
+  },
+  {
+    title: "We check everything",
+    body: "A visa officer reviews each document and asks for anything missing.",
+  },
+  {
+    title: "Track it to the decision",
+    body: "Your account shows every stage, and we email you at each one.",
+  },
+] as const;
+
+/** The three things people ask before they begin. */
+const HERO_FACTS = [
+  { icon: FileCheck2, label: "Free eligibility check before you pay anything" },
+  { icon: ShieldCheck, label: "Your documents stay private and are never shared" },
+  { icon: Headphones, label: "One named officer handles your case throughout" },
 ] as const;
 
 const REASONS = [
@@ -70,6 +98,10 @@ export default function Home() {
       return data.results;
     },
   });
+  // The office can put a photograph behind the hero from Website → Banners.
+  const banners = usePublicContent<BannerItem>("banners", { limit: 1 });
+  const heroImage = mediaUrl(banners.data?.[0]?.image ?? null);
+
   const latestNews = usePublicContent<NewsArticle>("news", { limit: 3 });
   const testimonials = usePublicContent<TestimonialItem>("testimonials", {
     limit: 3,
@@ -80,6 +112,24 @@ export default function Home() {
       {/* Hero. A deep navy field with a soft radial wash keeps the headline
           readable while still feeling designed rather than flat. */}
       <section className="relative isolate overflow-hidden bg-brand-950">
+        {/* Optional photograph from the MIS, set under Website → Banners.
+            It sits under the wash and is dimmed, because the headline has to
+            stay legible whatever picture the office chooses. */}
+        {heroImage && (
+          <>
+            <img
+              src={heroImage}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute inset-0 size-full object-cover opacity-25"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-gradient-to-r from-brand-950 via-brand-950/85 to-brand-950/55"
+            />
+          </>
+        )}
+
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-70"
@@ -122,60 +172,51 @@ export default function Home() {
             </div>
           </div>
 
-          {/* A stylised status card: shows the product's real value — visible
-              progress — instead of a decorative stock photograph. */}
+          {/* What a first-time visitor actually needs: what the process is,
+              what it costs them, and what they must have ready. The old card
+              showed a fictional application number, which told them nothing
+              and read as filler. */}
           <div className="relative">
             <div className="rounded-2xl border border-white/12 bg-white/8 p-6 shadow-lifted backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-brand-300">
-                    Application
-                  </p>
-                  <p className="tabular mt-1 font-display text-lg font-semibold text-white">
-                    VISA-2026-000125
-                  </p>
-                </div>
-                <span className="rounded-full bg-accent-500/15 px-2.5 py-1 text-xs font-medium text-accent-400 ring-1 ring-inset ring-accent-500/30">
-                  Processing
-                </span>
-              </div>
+              <p className="text-xs font-medium uppercase tracking-wide text-brand-300">
+                How it works
+              </p>
 
-              <ol className="mt-7 space-y-4">
-                {[
-                  { label: "Application submitted", meta: "10 Sep", done: true },
-                  { label: "Documents received", meta: "10 Sep", done: true },
-                  { label: "Documents verified", meta: "11 Sep", done: true },
-                  { label: "Application processing", meta: "Current", active: true },
-                  { label: "Final decision", meta: "Pending" },
-                ].map((step) => (
-                  <li key={step.label} className="flex items-center gap-3">
+              <ol className="mt-5 space-y-4">
+                {HOW_IT_WORKS.map((step, index) => (
+                  <li key={step.title} className="flex gap-3.5">
                     <span
-                      className={
-                        step.done
-                          ? "grid size-6 shrink-0 place-items-center rounded-full bg-success text-white"
-                          : step.active
-                            ? "size-6 shrink-0 rounded-full bg-accent-500/20 ring-2 ring-accent-500"
-                            : "size-6 shrink-0 rounded-full border border-white/20"
-                      }
+                      className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-semibold text-white ring-1 ring-inset ring-white/20"
                       aria-hidden
                     >
-                      {step.done && <BadgeCheck className="size-3.5" />}
+                      {index + 1}
                     </span>
-                    <span
-                      className={
-                        step.done || step.active
-                          ? "text-sm font-medium text-white"
-                          : "text-sm text-brand-300"
-                      }
-                    >
-                      {step.label}
-                    </span>
-                    <span className="tabular ml-auto text-xs text-brand-300">
-                      {step.meta}
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-white">
+                        {step.title}
+                      </span>
+                      <span className="mt-0.5 block text-sm leading-relaxed text-brand-300">
+                        {step.body}
+                      </span>
                     </span>
                   </li>
                 ))}
               </ol>
+
+              <div className="mt-6 space-y-2.5 border-t border-white/12 pt-5">
+                {HERO_FACTS.map(({ icon: Icon, label }) => (
+                  <p
+                    key={label}
+                    className="flex items-start gap-2.5 text-sm text-brand-200"
+                  >
+                    <Icon
+                      className="mt-0.5 size-4 shrink-0 text-accent-400"
+                      aria-hidden
+                    />
+                    {label}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -196,22 +237,73 @@ export default function Home() {
         </dl>
       </section>
 
-      <Section
-        title={t("home.whyTitle")}
-        subtitle="A visa application fails on detail. Our process is built to catch it."
-      >
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {REASONS.map(({ icon: Icon, title, body }) => (
-            <article key={title} className="card p-6">
-              <span className="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-600">
-                <Icon className="size-5" aria-hidden />
-              </span>
-              <h3 className="mt-5 text-base font-semibold">{title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-ink-500">{body}</p>
-            </article>
-          ))}
+      {/* One card rather than four, so the reasons read as a single argument
+          instead of four disconnected tiles. The heading panel is tinted and
+          the reasons are divided rules inside the same surface. */}
+      <section className="mx-auto mt-24 max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="card overflow-hidden shadow-lifted">
+          <div className="lg:grid lg:grid-cols-[0.8fr_1.2fr]">
+            {/* Heading panel. Tinted so the card has a clear front and back
+                rather than reading as one undifferentiated block. */}
+            <div className="relative isolate overflow-hidden bg-brand-950 p-8 sm:p-10">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-80"
+                style={{
+                  background:
+                    "radial-gradient(28rem 20rem at 20% 0%, oklch(0.48 0.148 261 / 0.6), transparent 65%)",
+                }}
+              />
+              <div className="relative">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-400">
+                  Why us
+                </span>
+                <h2 className="mt-4 font-display text-3xl font-bold leading-tight text-white sm:text-[2.1rem]">
+                  {t("home.whyTitle")}
+                </h2>
+                <p className="mt-4 max-w-sm text-base leading-relaxed text-brand-200">
+                  A visa application fails on detail. Our process is built to
+                  catch it before an embassy does.
+                </p>
+                <Link to="/signup" className="mt-8 inline-block">
+                  <Button variant="accent" icon={<ArrowRight className="size-4" />}>
+                    {t("home.applyNow")}
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            {/* The reasons. Divided by rules inside the card, numbered so the
+                eye has somewhere to start. */}
+            <dl className="divide-y divide-ink-100">
+              {REASONS.map(({ icon: Icon, title, body }, index) => (
+                <div
+                  key={title}
+                  className="group flex items-start gap-5 p-7 transition-colors hover:bg-brand-50/40 sm:px-9"
+                >
+                  <span className="relative grid size-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-600 group-hover:text-white">
+                    <Icon className="size-5" aria-hidden />
+                    <span
+                      className="tabular absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-white text-[0.65rem] font-semibold text-ink-400 ring-1 ring-ink-200"
+                      aria-hidden
+                    >
+                      {index + 1}
+                    </span>
+                  </span>
+                  <div className="min-w-0">
+                    <dt className="font-display text-base font-semibold text-ink-900">
+                      {title}
+                    </dt>
+                    <dd className="mt-1.5 text-sm leading-relaxed text-ink-500">
+                      {body}
+                    </dd>
+                  </div>
+                </div>
+              ))}
+            </dl>
+          </div>
         </div>
-      </Section>
+      </section>
 
       {(featuredVisas.data?.length ?? 0) > 0 && (
         <Section

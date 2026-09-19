@@ -10,13 +10,14 @@ from django.utils import timezone
 
 from applications.services import workflow
 from audit import services as audit
+from branches.scoping import office_email
 from core.i18n import translate
 from emails import services as email_service
 from emails.models import EmailTemplate
 from notifications import services as notify_service
 from notifications.models import Notification
 
-from .models import Document, DocumentRequest
+from .models import PAYMENT_PROOF_CODE, Document, DocumentRequest
 
 
 class DocumentError(Exception):
@@ -52,11 +53,16 @@ def upload(application, *, document_type, uploaded_file, actor=None, request=Non
 
     name = translate(document_type.name)
     is_resubmission = previous is not None
+    is_proof = document_type.code == PAYMENT_PROOF_CODE
 
     workflow.add_timeline(
         application,
-        action="Document uploaded",
-        description=f"{name} uploaded.",
+        action="Payment slip received" if is_proof else "Document uploaded",
+        description=(
+            "The customer sent proof of payment for checking."
+            if is_proof
+            else f"{name} uploaded."
+        ),
         actor=actor,
     )
 
@@ -81,20 +87,70 @@ def upload(application, *, document_type, uploaded_file, actor=None, request=Non
         fulfilled_at=timezone.now(),
     )
 
+    # Proof of payment is money arriving, not paperwork filed: it names itself
+    # in the alert and rings, because a bill sits unsettled until someone
+    # looks at it.
+    if is_proof:
+        title = "Payment slip received"
+    elif is_resubmission:
+        title = "Document resubmitted"
+    else:
+        title = "Document uploaded"
+
     notify_service.notify_mis(
         category=(
             Notification.Category.DOCUMENT_RESUBMITTED
             if is_resubmission
             else Notification.Category.DOCUMENT_UPLOADED
         ),
-        title="Document uploaded" if not is_resubmission else "Document resubmitted",
-        message=f"{name} — {application.application_number}",
+        title=title,
+        message=(
+            f"{application.full_name} — {application.application_number}"
+            if is_proof
+            else f"{name} — {application.application_number}"
+        ),
         application=application,
         link=f"/mis/applications/{application.pk}",
-        play_sound=is_resubmission,
+        play_sound=is_resubmission or is_proof,
     )
 
+    if is_proof:
+        _email_office_payment_slip(application, document)
+
     return document
+
+
+def _email_office_payment_slip(application, document):
+    """Tell the office money has arrived, even with nobody at the MIS.
+
+    Payment is the one upload the office must act on rather than merely file,
+    so it earns an email of its own instead of relying on someone noticing a
+    notification.
+    """
+    recipient = office_email(application)
+    if not recipient:
+        return None
+
+    body = "\n".join(
+        [
+            f"{application.full_name} has sent proof of payment.",
+            "",
+            f"Application: {application.application_number}",
+            f"Customer: {application.full_name}",
+            f"Phone: {application.phone}",
+            f"File: {document.original_filename}",
+            "",
+            "Open the application in the MIS to check the slip and confirm "
+            "the payment.",
+        ]
+    )
+
+    return email_service.send_email(
+        to_email=recipient,
+        subject=f"Payment slip received – {application.application_number}",
+        body=body,
+        application=application,
+    )
 
 
 @transaction.atomic

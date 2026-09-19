@@ -36,7 +36,9 @@ const NAV = [
   { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },
   { to: "/mis/accounts", label: "Users & Accounts", icon: ShieldCheck, permission: "users.view" },
   { to: "/mis/branches", label: "Branches", icon: Building2, permission: "branches.view" },
-  { to: "/mis/settings", label: "Settings", icon: Settings, permission: "cms.pages.manage" },
+  // Company-wide configuration — details, logo, the mail server every office
+  // sends through. A branch runs its own mail from its branch record.
+  { to: "/mis/settings", label: "Settings", icon: Settings, permission: "cms.pages.manage", generalOnly: true },
 ] as const;
 
 export function MISLayout() {
@@ -46,7 +48,12 @@ export function MISLayout() {
   const hasPermission = useAuth((state) => state.hasPermission);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const seesAllBranches = user?.sees_all_branches ?? false;
+
   const visible = NAV.filter((item) => {
+    if ("generalOnly" in item && item.generalOnly && !seesAllBranches) {
+      return false;
+    }
     if (!("permission" in item) || !item.permission) return true;
     if (item.permission === "applications.view_assigned") {
       return (

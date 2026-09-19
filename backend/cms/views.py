@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from accounts import permissions as perms
 from audit import services as audit
+from branches.scoping import sees_all_branches
 from emails import services as email_service
 from notifications import services as notify_service
 from notifications.models import Notification
@@ -258,8 +259,13 @@ class CompanyInfoView(APIView):
     def get(self, request):
         data = CompanyInfoSerializer(CompanyInfo.load()).data
         user = request.user
+        # Company-wide mail settings belong to head office. A branch runs its
+        # own mail from its branch record, so it has no reason to read — or
+        # repoint — the server every other office sends through.
         if not (
-            user.is_authenticated and user.has_perm_slug(perms.CMS_PAGES_MANAGE)
+            user.is_authenticated
+            and user.has_perm_slug(perms.CMS_PAGES_MANAGE)
+            and sees_all_branches(user)
         ):
             for field in self.STAFF_ONLY_FIELDS:
                 data.pop(field, None)
@@ -268,6 +274,10 @@ class CompanyInfoView(APIView):
     def patch(self, request):
         if not request.user.has_perm_slug(perms.CMS_PAGES_MANAGE):
             raise PermissionDenied("You cannot manage company information.")
+        if not sees_all_branches(request.user):
+            raise PermissionDenied(
+                "Only the general branch can change company settings."
+            )
 
         instance = CompanyInfo.load()
         serializer = CompanyInfoSerializer(instance, data=request.data, partial=True)
@@ -296,6 +306,10 @@ class MailTestView(APIView):
     def post(self, request):
         if not request.user.has_perm_slug(perms.CMS_PAGES_MANAGE):
             raise PermissionDenied("You cannot manage company information.")
+        if not sees_all_branches(request.user):
+            raise PermissionDenied(
+                "Only the general branch can test the company mail server."
+            )
 
         recipient = (request.data.get("email") or request.user.email or "").strip()
         if not recipient:

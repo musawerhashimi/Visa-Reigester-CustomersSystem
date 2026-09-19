@@ -30,3 +30,27 @@ def scope_to_branch(queryset, user, field="branch"):
         # Staff with no branch yet would otherwise see the whole system.
         return queryset.none()
     return queryset.filter(**{field: user.branch_id})
+
+
+def office_email(application):
+    """The inbox that should hear about this application.
+
+    The branch handling it comes first, because that is the office that will
+    act. The company-wide address is the fallback for a branch that has not
+    set its own, and an empty result means nobody has configured one.
+    """
+    from django.conf import settings
+
+    branch_email = getattr(application.branch, "email", "") or ""
+    if branch_email:
+        return branch_email
+
+    company = getattr(settings, "COMPANY_NOTIFICATION_EMAIL", "") or ""
+    if company:
+        return company
+
+    # Last resort: the address the office itself publishes on the website.
+    from cms.models import CompanyInfo
+
+    info = CompanyInfo.objects.first()
+    return (info.email if info else "") or ""

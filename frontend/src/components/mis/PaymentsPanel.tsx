@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Award, Download, FileText, Plus, Receipt as ReceiptIcon } from "lucide-react";
+import { Award, Download, FileText, Receipt as ReceiptIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/StatusBadge";
@@ -10,17 +10,30 @@ import { api, apiErrorMessage } from "@/lib/api";
 import { downloadFile } from "@/lib/download";
 import { useAuth } from "@/stores/auth";
 import type {
+  AppDocument,
   ApplicationDetail,
   OfficialDocument,
   Paginated,
   Payment,
 } from "@/types/domain";
 
-const METHODS = [
-  { value: "cash", label: "Cash" },
-  { value: "bank_transfer", label: "Bank transfer" },
-  { value: "other", label: "Other" },
-] as const;
+/** The two fees, each billed once per application. */
+type FeeKind = "registration" | "visa_fee";
+
+const FEES: { kind: FeeKind; label: string; action: string; hint: string }[] = [
+  {
+    kind: "registration",
+    label: "Registration fee",
+    action: "Make registration bill",
+    hint: "Charged once the customer's documents have been received.",
+  },
+  {
+    kind: "visa_fee",
+    label: "Visa processing fee",
+    action: "Make visa fee bill",
+    hint: "Charged when the application reaches verification.",
+  },
+];
 
 export function PaymentsPanel({
   application,
@@ -34,14 +47,21 @@ export function PaymentsPanel({
 
   const [error, setError] = useState<string | null>(null);
   const [attaching, setAttaching] = useState<"verification" | "approval" | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
+  const [billing, setBilling] = useState<FeeKind | null>(null);
+  const [billForm, setBillForm] = useState({
     amount: "",
     currency: "EUR",
-    method: "cash",
-    reference: "",
+    card_number: "",
     note: "",
   });
+
+  const paidStatuses = new Set(["documents_submitted", "verification", "verified",
+    "processing", "submitted_to_authority", "decision_pending", "approved",
+    "completed"]);
+  const documentsReceived = paidStatuses.has(application.status);
+
+  const visaFee = application.visa_type.fee_amount ?? "";
+  const visaCurrency = application.visa_type.fee_currency ?? "EUR";
 
   const payments = useQuery({
     queryKey: ["mis", "payments", application.id],
@@ -64,31 +84,61 @@ export function PaymentsPanel({
     },
   });
 
+  // The slips the customer sent back. They arrive in the documents list,
+  // but staff confirm payment here, so they are shown here too.
+  const slips = useQuery({
+    queryKey: ["mis", "payment-slips", application.id],
+    queryFn: async () => {
+      const { data } = await api.get<Paginated<AppDocument>>("/documents/", {
+        params: { application: application.id },
+      });
+      return data.results.filter(
+        (document) => document.document_type.code === "payment-proof",
+      );
+    },
+  });
+
+  // A fee already billed cannot be billed again, so its button is spent.
+  const billed = new Set((payments.data ?? []).map((payment) => payment.kind));
+
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["mis", "payments", application.id] });
     void queryClient.invalidateQueries({
       queryKey: ["mis", "official-documents", application.id],
     });
     void queryClient.invalidateQueries({ queryKey: ["mis", "application", application.id] });
+    void queryClient.invalidateQueries({
+      queryKey: ["mis", "payment-slips", application.id],
+    });
   };
 
-  const record = useMutation({
+  const bill = useMutation({
     mutationFn: () =>
-      api.post("/payments/record/", {
+      api.post("/payments/bill/", {
         application: application.id,
-        amount: form.amount,
-        currency: form.currency,
-        method: form.method,
-        reference: form.reference,
-        note: form.note,
+        kind: billing,
+        amount: billForm.amount,
+        currency: billForm.currency,
+        card_number: billForm.card_number,
+        note: billForm.note,
       }),
     onSuccess: () => {
       setError(null);
-      setShowForm(false);
-      setForm({ amount: "", currency: "EUR", method: "cash", reference: "", note: "" });
+      setBilling(null);
+      setBillForm({ amount: "", currency: "EUR", card_number: "", note: "" });
       refresh();
     },
-    onError: (err) => setError(apiErrorMessage(err, "Could not record the payment.")),
+    onError: (err) => setError(apiErrorMessage(err, "Could not create the bill.")),
+  });
+
+  const settle = useMutation({
+    mutationFn: (paymentId: number) =>
+      api.post(`/payments/${paymentId}/settle/`, {}),
+    onSuccess: () => {
+      setError(null);
+      refresh();
+    },
+    onError: (err) => setError(apiErrorMessage(err, "Could not confirm the payment.")),
   });
 
   const issue = useMutation({
@@ -151,15 +201,30 @@ export function PaymentsPanel({
       <section>
         <header className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-sm font-semibold">Payments</h3>
-          {canManage && !showForm && (
-            <Button
-              size="sm"
-              variant="outline"
-              icon={<Plus className="size-3.5" />}
-              onClick={() => setShowForm(true)}
-            >
-              Record payment
-            </Button>
+          {canManage && !billing && (
+            <div className="flex flex-wrap gap-2">
+              {FEES.map((fee) => (
+                <Button
+                  key={fee.kind}
+                  size="sm"
+                  variant="outline"
+                  icon={<ReceiptIcon className="size-3.5" />}
+                  disabled={billed.has(fee.kind)}
+                  onClick={() => {
+                    setBilling(fee.kind);
+                    setBillForm((f) => ({
+                      ...f,
+                      // The visa fee is already on the catalogue entry, so it
+                      // is offered rather than retyped from another screen.
+                      amount: fee.kind === "visa_fee" ? visaFee : "",
+                      currency: fee.kind === "visa_fee" ? visaCurrency : f.currency,
+                    }));
+                  }}
+                >
+                  {billed.has(fee.kind) ? `${fee.label} billed` : fee.action}
+                </Button>
+              ))}
+            </div>
           )}
         </header>
 
@@ -168,93 +233,16 @@ export function PaymentsPanel({
           online.
         </p>
 
-        {showForm && (
-          <form
-            className="mt-4 space-y-3 rounded-lg bg-ink-50 p-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              record.mutate();
-            }}
-          >
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field
-                label="Amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-                value={form.amount}
-                onChange={(event) =>
-                  setForm((f) => ({ ...f, amount: event.target.value }))
-                }
-              />
-              <Field
-                label="Currency"
-                value={form.currency}
-                maxLength={3}
-                onChange={(event) =>
-                  setForm((f) => ({ ...f, currency: event.target.value.toUpperCase() }))
-                }
-              />
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="payment-method"
-                  className="block text-sm font-medium text-ink-700"
-                >
-                  Method
-                </label>
-                <select
-                  id="payment-method"
-                  value={form.method}
-                  onChange={(event) =>
-                    setForm((f) => ({ ...f, method: event.target.value }))
-                  }
-                  className="w-full rounded-lg border border-ink-300 bg-white px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-                >
-                  {METHODS.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Reference"
-                hint="e.g. the counter receipt number"
-                value={form.reference}
-                onChange={(event) =>
-                  setForm((f) => ({ ...f, reference: event.target.value }))
-                }
-              />
-              <Field
-                label="Note"
-                value={form.note}
-                onChange={(event) => setForm((f) => ({ ...f, note: event.target.value }))}
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                size="sm"
-                loading={record.isPending}
-                disabled={!form.amount}
-              >
-                Record and issue receipt
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowForm(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+        {billing && (
+          <BillForm
+            kind={billing}
+            form={billForm}
+            setForm={setBillForm}
+            pending={bill.isPending}
+            documentsReceived={documentsReceived}
+            onSubmit={() => bill.mutate()}
+            onCancel={() => setBilling(null)}
+          />
         )}
 
         <ul className="mt-4 divide-y divide-ink-100 border-t border-ink-100">
@@ -273,6 +261,9 @@ export function PaymentsPanel({
               <div className="min-w-0 flex-1">
                 <p className="tabular text-sm font-medium text-ink-900">
                   {payment.amount} {payment.currency}
+                  <span className="ml-2 text-xs font-normal text-ink-500">
+                    {payment.kind_label}
+                  </span>
                 </p>
                 <p className="mt-0.5 text-xs text-ink-500">
                   {format(new Date(payment.paid_at), "d MMM yyyy")} ·{" "}
@@ -280,6 +271,11 @@ export function PaymentsPanel({
                   {payment.reference && ` · ${payment.reference}`}
                   {payment.recorded_by_name && ` · ${payment.recorded_by_name}`}
                 </p>
+                {payment.card_number && payment.status !== "paid" && (
+                  <p className="mt-0.5 text-xs text-ink-400">
+                    Pay into: {payment.card_number}
+                  </p>
+                )}
               </div>
 
               <Badge
@@ -287,6 +283,17 @@ export function PaymentsPanel({
                 tone={payment.status === "paid" ? "success" : "warning"}
                 label={payment.status}
               />
+
+              {canManage && payment.status !== "paid" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={settle.isPending}
+                  onClick={() => settle.mutate(payment.id)}
+                >
+                  Confirm payment
+                </Button>
+              )}
 
               {payment.receipt && (
                 <button
@@ -307,6 +314,58 @@ export function PaymentsPanel({
           ))}
         </ul>
       </section>
+
+      {(slips.data?.length ?? 0) > 0 && (
+        <section className="border-t border-ink-200 pt-5">
+          <h3 className="text-sm font-semibold">Payment slips from the customer</h3>
+          <p className="mt-1 text-xs text-ink-500">
+            Check the slip, then confirm the payment above. Verifying or
+            rejecting it is done on the Documents tab.
+          </p>
+
+          <ul className="mt-3 divide-y divide-ink-100 border-t border-ink-100">
+            {slips.data?.map((slip) => (
+              <li key={slip.id} className="flex flex-wrap items-center gap-3 py-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-info-soft text-info">
+                  <FileText className="size-4" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-ink-900">
+                    {slip.original_filename}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-500">
+                    Sent {format(new Date(slip.created_at), "d MMM yyyy")}
+                  </p>
+                </div>
+                <Badge
+                  dot
+                  tone={
+                    slip.status === "verified"
+                      ? "success"
+                      : slip.status === "rejected"
+                        ? "danger"
+                        : "warning"
+                  }
+                  label={slip.status}
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    download(
+                      `/documents/${slip.id}/download/`,
+                      slip.original_filename,
+                    )
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50"
+                >
+                  <Download className="size-3.5" aria-hidden />
+                  Open
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="border-t border-ink-200 pt-5">
         <header className="flex flex-wrap items-center justify-between gap-3">
@@ -409,6 +468,110 @@ export function PaymentsPanel({
  * sticker, an OIC, an authority letter — so attaching it is the default
  * path. Without a file the system falls back to generating its own letter.
  */
+function BillForm({
+  kind,
+  form,
+  setForm,
+  pending,
+  documentsReceived,
+  onSubmit,
+  onCancel,
+}: {
+  kind: FeeKind;
+  form: { amount: string; currency: string; card_number: string; note: string };
+  setForm: (update: (previous: {
+    amount: string;
+    currency: string;
+    card_number: string;
+    note: string;
+  }) => { amount: string; currency: string; card_number: string; note: string }) => void;
+  pending: boolean;
+  documentsReceived: boolean;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  const fee = FEES.find((item) => item.kind === kind)!;
+
+  return (
+    <form
+      className="mt-4 space-y-3 rounded-lg bg-ink-50 p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <div>
+        <h4 className="text-sm font-semibold text-ink-900">{fee.label}</h4>
+        <p className="mt-0.5 text-xs text-ink-500">{fee.hint}</p>
+      </div>
+
+      {/* Staff sometimes take payment before the paperwork arrives, so this
+          is a note rather than a block on the button. */}
+      {kind === "registration" && !documentsReceived && (
+        <p className="rounded-lg bg-warning-soft px-3 py-2 text-xs text-warning">
+          This customer's documents have not been received yet.
+        </p>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field
+          label="Amount"
+          type="number"
+          step="0.01"
+          min="0.01"
+          required
+          value={form.amount}
+          onChange={(event) =>
+            setForm((f) => ({ ...f, amount: event.target.value }))
+          }
+        />
+        <Field
+          label="Currency"
+          maxLength={3}
+          value={form.currency}
+          onChange={(event) =>
+            setForm((f) => ({ ...f, currency: event.target.value.toUpperCase() }))
+          }
+        />
+      </div>
+
+      <Field
+        label="Card / account number"
+        required
+        hint="The account the customer pays into. Printed on their bill."
+        value={form.card_number}
+        onChange={(event) =>
+          setForm((f) => ({ ...f, card_number: event.target.value }))
+        }
+      />
+
+      <Field
+        label="Note"
+        value={form.note}
+        onChange={(event) => setForm((f) => ({ ...f, note: event.target.value }))}
+      />
+
+      <div className="flex gap-2">
+        <Button
+          type="submit"
+          size="sm"
+          loading={pending}
+          disabled={!form.amount || !form.card_number}
+        >
+          Create bill and send
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+
+      <p className="text-xs text-ink-500">
+        The bill is sent to the customer's portal and email straight away.
+      </p>
+    </form>
+  );
+}
+
 function IssueForm({
   kind,
   pending,

@@ -75,6 +75,15 @@ export interface GalleryImage extends PublicContent {
   is_featured: boolean;
 }
 
+/** A hero image set in the MIS under Website → Banners. */
+export interface BannerItem extends PublicContent {
+  title: Translated;
+  subtitle: Translated;
+  image: string | null;
+  cta_label: Translated;
+  cta_url: string;
+}
+
 export interface TeamMemberItem extends PublicContent {
   name: string;
   position: Translated;

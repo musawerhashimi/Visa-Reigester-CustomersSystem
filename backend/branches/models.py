@@ -37,7 +37,37 @@ class Branch(TimeStampedModel):
 
     is_active = models.BooleanField(default=True, db_index=True)
 
+    #: The address customers see and reply to on this branch's mail. Blank
+    #: falls back to the company sender, so a branch works before it is set up.
+    sending_email = models.EmailField(blank=True)
+
+    #: This branch's own mail server. A branch with its own mailbox sends from
+    #: it directly rather than through head office, so replies reach the people
+    #: handling the work. Blank fields fall back to the company server.
+    smtp_host = models.CharField(max_length=200, blank=True)
+    smtp_port = models.PositiveIntegerField(null=True, blank=True)
+    smtp_username = models.CharField(max_length=200, blank=True)
+    #: Encrypted at rest (core.encryption); never returned by the API.
+    smtp_password_encrypted = models.TextField(blank=True)
+    smtp_use_tls = models.BooleanField(default=True)
+    #: While false this branch uses the company mail server.
+    smtp_enabled = models.BooleanField(default=False)
+
     objects = BranchQuerySet.as_manager()
+
+    def set_smtp_password(self, raw):
+        from core.encryption import encrypt
+
+        self.smtp_password_encrypted = encrypt(raw or "")
+
+    def get_smtp_password(self):
+        from core.encryption import decrypt
+
+        return decrypt(self.smtp_password_encrypted)
+
+    @property
+    def has_own_mail_server(self):
+        return bool(self.smtp_enabled and self.smtp_host)
 
     class Meta:
         ordering = ("-is_general", "name")

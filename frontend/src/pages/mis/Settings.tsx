@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Info, Mail } from "lucide-react";
+import { Building2, Info, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { TranslatedInput } from "@/components/cms/TranslatedInput";
 import { Button } from "@/components/ui/Button";
@@ -23,7 +24,11 @@ export default function Settings() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const hasPermission = useAuth((state) => state.hasPermission);
-  const canManage = hasPermission("cms.pages.manage");
+  const seesAllBranches = useAuth((state) => state.user?.sees_all_branches ?? false);
+  // These settings are company-wide — the details, the logo, and the mail
+  // server every office sends through. A branch configures its own mail on
+  // its branch record instead.
+  const canManage = hasPermission("cms.pages.manage") && seesAllBranches;
 
   const [form, setForm] = useState<Partial<CompanyInfo>>({});
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +72,30 @@ export default function Settings() {
     return <p className="py-16 text-center text-sm text-ink-500">Loading…</p>;
   }
 
+  // Reached by typing the URL, since the sidebar link is hidden. Showing the
+  // company's configuration read-only would still expose it, so the page says
+  // where the branch's own settings live instead.
+  if (!seesAllBranches) {
+    return (
+      <div className="mx-auto max-w-2xl py-16 text-center">
+        <Building2 className="mx-auto size-8 text-ink-300" aria-hidden />
+        <h1 className="mt-3 font-display text-xl font-bold">
+          Managed by the general branch
+        </h1>
+        <p className="mx-auto mt-2 max-w-md text-sm text-ink-500">
+          These are company-wide settings. Your branch's own email address and
+          mail server are set on the Branches page.
+        </p>
+        <Link
+          to="/mis/branches"
+          className="mt-5 inline-flex items-center gap-1.5 rounded-lg border border-ink-300 px-3.5 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
+        >
+          Go to Branches
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <header>
@@ -84,7 +113,9 @@ export default function Settings() {
 
       {!canManage && (
         <p className="rounded-lg bg-ink-100 px-3.5 py-3 text-sm text-ink-600">
-          You can view these settings but not change them.
+          {seesAllBranches
+            ? "You can view these settings but not change them."
+            : "These are company-wide settings, managed by the general branch. Your branch's own email is set on the Branches page."}
         </p>
       )}
 

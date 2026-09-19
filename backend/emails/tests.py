@@ -480,3 +480,103 @@ class SendingAddressTests(TestCase):
 
         self.assertEqual(log.status, "sent")
         self.assertEqual(mail.outbox[-1].from_email, "office@visacare.test")
+
+
+@override_settings(SITE_URL="https://visacare.example")
+class PortalLinkTests(TestCase):
+    """Email is read away from the app, so every pointer needs a real link."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.core.management import call_command
+
+        call_command("seed_demo", verbosity=0)
+
+    def test_links_are_absolute(self):
+        from emails.services import site_url
+
+        self.assertEqual(site_url(), "https://visacare.example")
+        self.assertEqual(
+            site_url("/portal"), "https://visacare.example/portal"
+        )
+        # A path given without its leading slash must not double it.
+        self.assertEqual(site_url("portal"), "https://visacare.example/portal")
+
+    @override_settings(SITE_URL="https://visacare.example/")
+    def test_a_trailing_slash_does_not_double_up(self):
+        """Settings are typed by hand; a trailing slash is easy to leave in."""
+        from django.conf import settings
+        from emails.services import site_url
+
+        # The setting is normalised at import, so re-read it the way callers do.
+        base = settings.SITE_URL.rstrip("/")
+        self.assertFalse(base.endswith("/"))
+        self.assertNotIn("//portal", site_url("/portal").replace("https://", ""))
+
+    def test_every_template_context_carries_the_links(self):
+        from emails.services import build_context
+
+        context = build_context()
+        for key in ("site_url", "portal_url", "login_url", "contact_url"):
+            self.assertIn(key, context)
+            self.assertTrue(context[key].startswith("https://visacare.example"))
+
+    def test_an_application_context_links_to_that_application(self):
+        from emails.services import build_context
+
+        application = _application_for_links()
+        context = build_context(application=application)
+        self.assertEqual(
+            context["application_url"],
+            f"https://visacare.example/portal/applications/{application.pk}",
+        )
+
+    def test_the_seeded_templates_point_customers_somewhere(self):
+        """A template saying 'use the portal' with no link is a dead end."""
+        from emails.models import EmailTemplate
+
+        customer_facing = EmailTemplate.objects.exclude(
+            trigger=EmailTemplate.Trigger.COMPANY_NEW_APPLICATION
+        )
+        self.assertTrue(customer_facing.exists())
+        for template in customer_facing:
+            self.assertIn(
+                "{{application_url}}",
+                template.body,
+                f"{template.code} gives the customer nowhere to go",
+            )
+
+    def test_a_sent_email_contains_the_resolved_link(self):
+        from emails.models import EmailTemplate
+        from emails.services import send_from_template
+
+        application = _application_for_links()
+        log = send_from_template(
+            EmailTemplate.Trigger.APPLICATION_SUBMITTED,
+            to_email="customer@test.local",
+            application=application,
+        )
+        self.assertIsNotNone(log)
+        self.assertIn(
+            f"https://visacare.example/portal/applications/{application.pk}",
+            log.body,
+        )
+        # The placeholder itself must not survive into the sent body.
+        self.assertNotIn("{{application_url}}", log.body)
+
+
+def _application_for_links():
+    from applications.models import Application
+    from customers.models import CustomerProfile
+    from visas.models import VisaType
+
+    User = get_user_model()
+    user = User.objects.create_user(
+        email="links@test.local", password="StrongPass2026!"
+    )
+    return Application.objects.create(
+        customer=CustomerProfile.objects.create(user=user),
+        visa_type=VisaType.objects.get(slug="germany-student-visa"),
+        first_name="Link",
+        last_name="Test",
+    )
