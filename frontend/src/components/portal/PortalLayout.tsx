@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Plane,
   Plus,
   User as UserIcon,
   X,
@@ -18,6 +17,7 @@ import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { notificationSocket, playAlertTone } from "@/lib/notifications";
+import { CompanyBrand } from "@/components/layout/CompanyBrand";
 import { useAuth } from "@/stores/auth";
 import type { Notification, Paginated } from "@/types/domain";
 
@@ -93,12 +93,7 @@ export function PortalLayout() {
       <header className="sticky top-0 z-40 border-b border-ink-200 bg-white/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
           <NavLink to="/" className="flex shrink-0 items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-brand-700 text-white">
-              <Plane className="size-5" aria-hidden />
-            </span>
-            <span className="font-display text-[17px] font-bold text-ink-900">
-              VisaCare
-            </span>
+            <CompanyBrand />
           </NavLink>
 
           <nav className="ml-4 hidden items-center gap-0.5 md:flex">

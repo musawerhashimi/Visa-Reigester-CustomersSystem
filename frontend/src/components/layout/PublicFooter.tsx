@@ -1,6 +1,9 @@
-import { Mail, MapPin, Phone, Plane } from "lucide-react";
+import { Mail, MapPin, Phone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+
+import { CompanyBrand } from "./CompanyBrand";
+import { useCompanyName } from "./useCompanyName";
 
 const QUICK_LINKS = [
   { to: "/about", key: "nav.about" },
@@ -14,19 +17,13 @@ const QUICK_LINKS = [
 export function PublicFooter() {
   const { t } = useTranslation();
   const year = new Date().getFullYear();
+  const companyName = useCompanyName();
 
   return (
     <footer className="mt-24 bg-brand-950 text-brand-100">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 lg:grid-cols-4 lg:px-8">
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-white/10">
-              <Plane className="size-5 text-white" aria-hidden />
-            </span>
-            <span className="font-display text-[17px] font-bold text-white">
-              VisaCare
-            </span>
-          </div>
+          <CompanyBrand tone="light" />
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-brand-200">
             {t("home.heroSubtitle")}
           </p>
@@ -94,7 +91,7 @@ export function PublicFooter() {
 
       <div className="border-t border-white/10">
         <div className="mx-auto max-w-7xl px-4 py-5 text-center text-xs text-brand-300 sm:px-6 lg:px-8">
-          © {year} VisaCare. {t("footer.rights")}
+          © {year} {companyName}. {t("footer.rights")}
         </div>
       </div>
     </footer>

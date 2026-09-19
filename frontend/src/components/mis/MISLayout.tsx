@@ -18,6 +18,7 @@ import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { cn } from "@/lib/cn";
+import { useCompanyName } from "@/components/layout/useCompanyName";
 import { useAuth } from "@/stores/auth";
 
 import { NotificationBell } from "./NotificationBell";
@@ -46,6 +47,7 @@ export function MISLayout() {
   const user = useAuth((state) => state.user);
   const logout = useAuth((state) => state.logout);
   const hasPermission = useAuth((state) => state.hasPermission);
+  const companyName = useCompanyName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const seesAllBranches = user?.sees_all_branches ?? false;
@@ -83,8 +85,8 @@ export function MISLayout() {
           <span className="grid size-8 place-items-center rounded-lg bg-white/10">
             <Plane className="size-4 text-white" aria-hidden />
           </span>
-          <span className="font-display text-[15px] font-bold text-white">
-            VisaCare MIS
+          <span className="truncate font-display text-[15px] font-bold text-white">
+            {companyName} MIS
           </span>
           <button
             type="button"

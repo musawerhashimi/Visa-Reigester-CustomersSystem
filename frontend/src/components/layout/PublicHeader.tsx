@@ -1,4 +1,4 @@
-import { ChevronDown, Menu, Plane, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, useLocation } from "react-router-dom";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/stores/auth";
 
+import { CompanyBrand } from "./CompanyBrand";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { UserMenu } from "./UserMenu";
 
@@ -61,13 +62,8 @@ export function PublicHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="flex shrink-0 items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-xl bg-brand-700 text-white shadow-subtle">
-            <Plane className="size-5" aria-hidden />
-          </span>
-          <span className="font-display text-[17px] font-bold tracking-tight text-ink-900">
-            VisaCare
-          </span>
+        <Link to="/">
+          <CompanyBrand />
         </Link>
 
         <nav className="ml-4 hidden items-center gap-0.5 lg:flex">
@@ -167,7 +163,7 @@ export function PublicHeader() {
             ))}
 
             <div className="flex items-center gap-2 border-t border-ink-200 pt-3">
-              <LanguageSwitcher />
+              <LanguageSwitcher align="left" />
               <div className="ml-auto flex gap-2">
                 {user ? (
                   <UserMenu />

@@ -6,7 +6,15 @@ import { LANGUAGE_LABELS, activeContentLanguage } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import { CONTENT_LANGUAGES, type ContentLanguage } from "@/types/domain";
 
-export function LanguageSwitcher({ className }: { className?: string }) {
+export function LanguageSwitcher({
+  className,
+  /** Which edge the menu aligns to. The trigger sits at the left of the
+      mobile menu, where a right-aligned panel would open off-screen. */
+  align = "right",
+}: {
+  className?: string;
+  align?: "left" | "right";
+}) {
   const { i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,8 +61,9 @@ export function LanguageSwitcher({ className }: { className?: string }) {
         <ul
           role="listbox"
           className={cn(
-            "absolute right-0 z-50 mt-2 w-44 overflow-hidden rounded-xl border border-ink-200",
-            "bg-white p-1 shadow-lifted",
+            "absolute z-50 mt-2 w-44 overflow-hidden rounded-xl border border-ink-200",
+            "bg-white p-1 text-ink-700 shadow-lifted",
+            align === "left" ? "left-0" : "right-0",
           )}
         >
           {CONTENT_LANGUAGES.map((language) => (
@@ -66,7 +75,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
                 onClick={() => choose(language)}
                 className={cn(
                   "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm",
-                  "transition-colors hover:bg-ink-100",
+                  "bg-white transition-colors hover:bg-ink-100",
                   language === current
                     ? "font-medium text-brand-700"
                     : "text-ink-700",

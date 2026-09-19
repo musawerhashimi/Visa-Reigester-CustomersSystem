@@ -34,54 +34,20 @@ const STATS = [
   { icon: Clock, value: "12", key: "home.statsYears" },
 ] as const;
 
-/** What applying actually involves, for someone who has never done it. */
+/** What applying actually involves, for someone who has never done it.
+    Only the icons and key names live here; the wording is translated. */
 const HOW_IT_WORKS = [
-  {
-    title: "Choose your visa and office",
-    body: "Pick the visa you need and the branch that will handle it.",
-  },
-  {
-    title: "Upload your documents",
-    body: "We tell you exactly which files are required before you start.",
-  },
-  {
-    title: "We check everything",
-    body: "A visa officer reviews each document and asks for anything missing.",
-  },
-  {
-    title: "Track it to the decision",
-    body: "Your account shows every stage, and we email you at each one.",
-  },
-] as const;
-
-/** The three things people ask before they begin. */
-const HERO_FACTS = [
-  { icon: FileCheck2, label: "Free eligibility check before you pay anything" },
-  { icon: ShieldCheck, label: "Your documents stay private and are never shared" },
-  { icon: Headphones, label: "One named officer handles your case throughout" },
+  "home.step1",
+  "home.step2",
+  "home.step3",
+  "home.step4",
 ] as const;
 
 const REASONS = [
-  {
-    icon: FileCheck2,
-    title: "Documents checked before submission",
-    body: "Every file is reviewed by a visa officer, so a missing bank statement is caught here and not at the embassy.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Your data stays private",
-    body: "Documents are stored behind per-application access rules and are never exposed through public links.",
-  },
-  {
-    icon: Clock,
-    title: "Track every stage",
-    body: "From submission to decision, your portal shows exactly where the application stands and what is needed next.",
-  },
-  {
-    icon: Headphones,
-    title: "A named officer to talk to",
-    body: "Each application is assigned to one officer, so you are never repeating your story to a new person.",
-  },
+  { icon: FileCheck2, key: "home.reason1" },
+  { icon: ShieldCheck, key: "home.reason2" },
+  { icon: Clock, key: "home.reason3" },
+  { icon: Headphones, key: "home.reason4" },
 ] as const;
 
 export default function Home() {
@@ -143,7 +109,7 @@ export default function Home() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15">
               <BadgeCheck className="size-3.5" aria-hidden />
-              Licensed visa consultancy
+              {t("home.heroBadge")}
             </span>
 
             <h1 className="mt-6 font-display text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-[3.4rem]">
@@ -179,12 +145,12 @@ export default function Home() {
           <div className="relative">
             <div className="rounded-2xl border border-white/12 bg-white/8 p-6 shadow-lifted backdrop-blur-sm">
               <p className="text-xs font-medium uppercase tracking-wide text-brand-300">
-                How it works
+                {t("home.howItWorks")}
               </p>
 
               <ol className="mt-5 space-y-4">
                 {HOW_IT_WORKS.map((step, index) => (
-                  <li key={step.title} className="flex gap-3.5">
+                  <li key={step} className="flex gap-3.5">
                     <span
                       className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-xs font-semibold text-white ring-1 ring-inset ring-white/20"
                       aria-hidden
@@ -193,45 +159,40 @@ export default function Home() {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-medium text-white">
-                        {step.title}
+                        {t(`${step}Title`)}
                       </span>
                       <span className="mt-0.5 block text-sm leading-relaxed text-brand-300">
-                        {step.body}
+                        {t(`${step}Body`)}
                       </span>
                     </span>
                   </li>
                 ))}
               </ol>
-
-              <div className="mt-6 space-y-2.5 border-t border-white/12 pt-5">
-                {HERO_FACTS.map(({ icon: Icon, label }) => (
-                  <p
-                    key={label}
-                    className="flex items-start gap-2.5 text-sm text-brand-200"
-                  >
-                    <Icon
-                      className="mt-0.5 size-4 shrink-0 text-accent-400"
-                      aria-hidden
-                    />
-                    {label}
-                  </p>
-                ))}
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats strip, lifted over the hero edge so the two sections read as one. */}
+      {/* Stats strip, lifted over the hero edge so the two sections read as one.
+          Two across on a phone rather than four stacked: as a single column
+          this was four tall blocks to scroll past, when the numbers are meant
+          to be taken in at a glance. */}
       <section className="relative z-10 mx-auto -mt-12 max-w-7xl px-4 sm:px-6 lg:px-8">
-        <dl className="card grid gap-px overflow-hidden bg-ink-200 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="card grid grid-cols-2 gap-px overflow-hidden bg-ink-200 lg:grid-cols-4">
           {STATS.map(({ icon: Icon, value, key }) => (
-            <div key={key} className="bg-white px-6 py-7">
+            <div
+              key={key}
+              className="flex flex-col items-center bg-white px-3 py-6 text-center sm:items-start sm:px-6 sm:py-7 sm:text-left"
+            >
               <Icon className="size-5 text-brand-500" aria-hidden />
-              <dd className="tabular mt-3 font-display text-3xl font-bold text-ink-900">
+              <dd className="tabular mt-2.5 font-display text-2xl font-bold text-ink-900 sm:mt-3 sm:text-3xl">
                 {value}
               </dd>
-              <dt className="mt-1 text-sm text-ink-500">{t(key)}</dt>
+              {/* balance keeps a two-word label from breaking one word onto
+                  its own line in the narrow phone column. */}
+              <dt className="mt-1 text-balance text-xs leading-snug text-ink-500 sm:text-sm">
+                {t(key)}
+              </dt>
             </div>
           ))}
         </dl>
@@ -256,14 +217,13 @@ export default function Home() {
               />
               <div className="relative">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-400">
-                  Why us
+                  {t("home.whyEyebrow")}
                 </span>
                 <h2 className="mt-4 font-display text-3xl font-bold leading-tight text-white sm:text-[2.1rem]">
                   {t("home.whyTitle")}
                 </h2>
                 <p className="mt-4 max-w-sm text-base leading-relaxed text-brand-200">
-                  A visa application fails on detail. Our process is built to
-                  catch it before an embassy does.
+                  {t("home.whySubtitle")}
                 </p>
                 <Link to="/signup" className="mt-8 inline-block">
                   <Button variant="accent" icon={<ArrowRight className="size-4" />}>
@@ -276,9 +236,9 @@ export default function Home() {
             {/* The reasons. Divided by rules inside the card, numbered so the
                 eye has somewhere to start. */}
             <dl className="divide-y divide-ink-100">
-              {REASONS.map(({ icon: Icon, title, body }, index) => (
+              {REASONS.map(({ icon: Icon, key }, index) => (
                 <div
-                  key={title}
+                  key={key}
                   className="group flex items-start gap-5 p-7 transition-colors hover:bg-brand-50/40 sm:px-9"
                 >
                   <span className="relative grid size-12 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-600 group-hover:text-white">
@@ -292,10 +252,10 @@ export default function Home() {
                   </span>
                   <div className="min-w-0">
                     <dt className="font-display text-base font-semibold text-ink-900">
-                      {title}
+                      {t(`${key}Title`)}
                     </dt>
                     <dd className="mt-1.5 text-sm leading-relaxed text-ink-500">
-                      {body}
+                      {t(`${key}Body`)}
                     </dd>
                   </div>
                 </div>
@@ -308,7 +268,7 @@ export default function Home() {
       {(featuredVisas.data?.length ?? 0) > 0 && (
         <Section
           title={t("home.featuredVisas")}
-          subtitle="The visas we are helping most applicants with right now."
+          subtitle={t("home.featuredVisasSubtitle")}
         >
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {featuredVisas.data?.map((visa) => {
@@ -436,11 +396,10 @@ export default function Home() {
           />
           <div className="relative">
             <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
-              Ready to start your application?
+              {t("home.ctaTitle")}
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-brand-200">
-              Create an account, complete the form once, and upload your documents.
-              We will take it from there.
+              {t("home.ctaBody")}
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link to="/signup">

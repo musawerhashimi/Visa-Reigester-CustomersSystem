@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Lock, Mail, Plane } from "lucide-react";
+import { AlertCircle, Lock, Mail } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
+import { CompanyBrand } from "@/components/layout/CompanyBrand";
+import { useCompanyName } from "@/components/layout/useCompanyName";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { apiErrorMessage } from "@/lib/api";
@@ -20,6 +22,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function Login() {
   const { t } = useTranslation();
+  const companyName = useCompanyName();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const login = useAuth((state) => state.login);
@@ -67,38 +70,29 @@ export default function Login() {
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-12">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-white/10">
-              <Plane className="size-5 text-white" aria-hidden />
-            </span>
-            <span className="font-display text-[17px] font-bold text-white">
-              VisaCare
-            </span>
+          <Link to="/">
+            <CompanyBrand tone="light" />
           </Link>
 
           <div>
             <h2 className="max-w-md font-display text-3xl font-bold leading-tight text-white">
-              Everything about your application, in one place.
+              {t("auth.loginPanelTitle")}
             </h2>
             <p className="mt-4 max-w-md leading-relaxed text-brand-200">
-              Check your status, upload what your officer asked for, and download
-              your receipts and approval documents.
+              {t("auth.loginPanelBody")}
             </p>
           </div>
 
           <p className="text-xs text-brand-400">
-            © {new Date().getFullYear()} VisaCare
+            © {new Date().getFullYear()} {companyName}
           </p>
         </div>
       </aside>
 
       <main className="flex items-center justify-center px-4 py-12 sm:px-8">
         <div className="w-full max-w-sm">
-          <Link to="/" className="mb-10 flex items-center gap-2.5 lg:hidden">
-            <span className="grid size-9 place-items-center rounded-xl bg-brand-700">
-              <Plane className="size-5 text-white" aria-hidden />
-            </span>
-            <span className="font-display text-[17px] font-bold">VisaCare</span>
+          <Link to="/" className="mb-10 block lg:hidden">
+            <CompanyBrand />
           </Link>
 
           <h1 className="font-display text-2xl font-bold">{t("auth.loginTitle")}</h1>
@@ -164,6 +158,12 @@ export default function Login() {
             >
               {t("auth.submitSignup")}
             </Link>
+          </p>
+
+          {/* The dark panel carrying the copyright is hidden below lg, so on a
+              phone the page would otherwise end with no company name at all. */}
+          <p className="mt-10 text-center text-xs text-ink-400 lg:hidden">
+            © {new Date().getFullYear()} {companyName}
           </p>
         </div>
       </main>

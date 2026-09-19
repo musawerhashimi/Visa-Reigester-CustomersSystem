@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Lock, Mail, Plane, User } from "lucide-react";
+import { AlertCircle, Lock, Mail, User } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
+import { CompanyBrand } from "@/components/layout/CompanyBrand";
+import { useCompanyName } from "@/components/layout/useCompanyName";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { api, apiErrorMessage } from "@/lib/api";
@@ -29,6 +31,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function Signup() {
   const { t } = useTranslation();
+  const companyName = useCompanyName();
   const navigate = useNavigate();
   const login = useAuth((state) => state.login);
   const [formError, setFormError] = useState<string | null>(null);
@@ -64,46 +67,39 @@ export default function Signup() {
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-12">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="grid size-9 place-items-center rounded-xl bg-white/10">
-              <Plane className="size-5 text-white" aria-hidden />
-            </span>
-            <span className="font-display text-[17px] font-bold text-white">
-              VisaCare
-            </span>
+          <Link to="/">
+            <CompanyBrand tone="light" />
           </Link>
 
           <div>
             <h2 className="max-w-md font-display text-3xl font-bold leading-tight text-white">
-              One account, every application.
+              {t("auth.signupPanelTitle")}
             </h2>
             <ul className="mt-6 space-y-3 text-brand-200">
-              {[
-                "Apply for any visa we handle",
-                "Upload documents once, securely",
-                "Watch each stage as it happens",
-              ].map((item) => (
-                <li key={item} className="flex items-center gap-2.5">
-                  <span className="size-1.5 rounded-full bg-accent-500" aria-hidden />
-                  {item}
-                </li>
-              ))}
+              {["auth.signupPerk1", "auth.signupPerk2", "auth.signupPerk3"].map(
+                (key) => (
+                  <li key={key} className="flex items-center gap-2.5">
+                    <span
+                      className="size-1.5 shrink-0 rounded-full bg-accent-500"
+                      aria-hidden
+                    />
+                    {t(key)}
+                  </li>
+                ),
+              )}
             </ul>
           </div>
 
           <p className="text-xs text-brand-400">
-            © {new Date().getFullYear()} VisaCare
+            © {new Date().getFullYear()} {companyName}
           </p>
         </div>
       </aside>
 
       <main className="flex items-center justify-center px-4 py-12 sm:px-8">
         <div className="w-full max-w-md">
-          <Link to="/" className="mb-10 flex items-center gap-2.5 lg:hidden">
-            <span className="grid size-9 place-items-center rounded-xl bg-brand-700">
-              <Plane className="size-5 text-white" aria-hidden />
-            </span>
-            <span className="font-display text-[17px] font-bold">VisaCare</span>
+          <Link to="/" className="mb-10 block lg:hidden">
+            <CompanyBrand />
           </Link>
 
           <h1 className="font-display text-2xl font-bold">{t("auth.signupTitle")}</h1>
@@ -180,8 +176,7 @@ export default function Signup() {
             />
 
             <p className="text-xs leading-relaxed text-ink-500">
-              We only ask for passport and travel details inside an application,
-              where they are stored securely.
+              {t("auth.signupPrivacyNote")}
             </p>
 
             <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
@@ -194,6 +189,12 @@ export default function Signup() {
             <Link to="/login" className="font-medium text-brand-600 hover:text-brand-700">
               {t("auth.submitLogin")}
             </Link>
+          </p>
+
+          {/* The dark panel carrying the copyright is hidden below lg, so on a
+              phone the page would otherwise end with no company name at all. */}
+          <p className="mt-10 text-center text-xs text-ink-400 lg:hidden">
+            © {new Date().getFullYear()} {companyName}
           </p>
         </div>
       </main>
