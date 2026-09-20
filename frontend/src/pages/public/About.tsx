@@ -14,6 +14,7 @@ import {
   usePublicContent,
   type TeamMemberItem,
 } from "@/lib/cms";
+import { cn } from "@/lib/cn";
 import { translate } from "@/lib/i18n";
 
 export default function About() {
@@ -48,22 +49,38 @@ export default function About() {
 
         {company && (
           <>
-            {aboutImage && (
-              <figure className="-mt-4 overflow-hidden rounded-2xl border border-ink-200 shadow-lifted">
-                <img
-                  src={aboutImage}
-                  alt=""
-                  className="h-64 w-full object-cover sm:h-80 lg:h-96"
-                />
-              </figure>
-            )}
+            {/* Story and photograph side by side. Stacked, the picture pushed
+                the text below the fold and the two read as unrelated blocks.
+                Either one alone still fills the row. */}
+            {(translate(company.history) || aboutImage) && (
+              <section
+                className={cn(
+                  "grid items-start gap-10 lg:gap-14",
+                  // Two columns only when both halves exist; with one, a
+                  // grid-cols-2 would leave it stranded in the left column.
+                  translate(company.history) && aboutImage && "lg:grid-cols-2",
+                )}
+              >
+                {translate(company.history) && (
+                  <div>
+                    <h2 className="font-display text-2xl font-bold">
+                      {t("pages.storyTitle")}
+                    </h2>
+                    <div className="mt-5">
+                      <RichText text={translate(company.history)} />
+                    </div>
+                  </div>
+                )}
 
-            {translate(company.history) && (
-              <section>
-                <h2 className="font-display text-2xl font-bold">{t("pages.storyTitle")}</h2>
-                <div className="mt-5 max-w-3xl">
-                  <RichText text={translate(company.history)} />
-                </div>
+                {aboutImage && (
+                  <figure className="overflow-hidden rounded-2xl border border-ink-200 shadow-lifted lg:sticky lg:top-24">
+                    <img
+                      src={aboutImage}
+                      alt=""
+                      className="h-64 w-full object-cover sm:h-80 lg:h-[26rem]"
+                    />
+                  </figure>
+                )}
               </section>
             )}
 
