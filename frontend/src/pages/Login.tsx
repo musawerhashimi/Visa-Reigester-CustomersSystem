@@ -101,22 +101,35 @@ export default function Login() {
         <div className="w-full max-w-sm">
           {/* The brand panel's own logo links home, but it is hidden below
               lg — and a labelled control says where it goes, which a logo
-              alone does not. */}
+              alone does not. A bordered pill reads as a control rather than
+              as stray text above the form. */}
           <Link
             to="/"
-            className="mb-8 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900"
+            className="group mb-6 inline-flex items-center gap-1.5 rounded-full lg:mb-8 border border-ink-200 bg-white/70 py-1.5 pl-2.5 pr-3.5 text-sm font-medium text-ink-600 shadow-subtle backdrop-blur-sm transition-colors hover:border-ink-300 hover:text-ink-900"
           >
-            <ArrowLeft className="size-4" aria-hidden />
+            <ArrowLeft
+              className="size-4 transition-transform group-hover:-translate-x-0.5"
+              aria-hidden
+            />
             {t("auth.backToSite")}
           </Link>
 
-          <Link to="/" className="mb-8 block lg:hidden">
-            <CompanyBrand />
+          {/* Centred below lg, where the brand panel is hidden and this is the
+              only thing identifying whose site this is. */}
+          <Link to="/" className="mb-8 flex justify-center lg:hidden">
+            <CompanyBrand size="lg" />
           </Link>
 
           <div className="card p-6 shadow-lifted sm:p-8">
-            <h1 className="font-display text-2xl font-bold">{t("auth.loginTitle")}</h1>
-            <p className="mt-2 text-sm text-ink-500">{t("auth.loginSubtitle")}</p>
+            {/* Centred to match the brand mark above it on narrow screens;
+                left-aligned from lg, where the brand panel carries the
+                identity and the form is simply a form. */}
+            <h1 className="text-center font-display text-2xl font-bold lg:text-left">
+              {t("auth.loginTitle")}
+            </h1>
+            <p className="mt-2 text-center text-sm text-ink-500 lg:text-left">
+              {t("auth.loginSubtitle")}
+            </p>
 
             {formError && (
               <div
