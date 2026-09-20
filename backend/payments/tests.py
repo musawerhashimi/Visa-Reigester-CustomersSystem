@@ -774,6 +774,7 @@ class FeeBillingTests(TestCase):
 @override_settings(
     MEDIA_ROOT="/tmp/visacrm-slip-test-media",
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    COMPANY_NOTIFICATION_EMAIL="head@office.test",
 )
 class PaymentSlipTests(TestCase):
     """The slip a customer sends back must reach the branch that billed them."""
@@ -883,11 +884,55 @@ class PaymentSlipTests(TestCase):
         recipients = [address for message in mail.outbox for address in message.to]
         self.assertIn("kabul@office.test", recipients)
 
-    @override_settings(COMPANY_NOTIFICATION_EMAIL="head@office.test")
     def test_a_branch_without_an_inbox_falls_back_to_the_company(self):
+        """The company address set in the MIS is the next place to look."""
         from django.core import mail
 
+        from cms.models import CompanyInfo
+
         self.assertEqual(self.kabul.email, "")
+        info = CompanyInfo.load()
+        info.email = "company@office.test"
+        info.save(update_fields=["email"])
+
+        mail.outbox.clear()
+        self.upload_slip()
+
+        recipients = [address for message in mail.outbox for address in message.to]
+        self.assertIn("company@office.test", recipients)
+
+    def test_the_mis_address_beats_the_environment(self):
+        """Settings must be editable without a redeploy.
+
+        The environment variable can only change by redeploying, so if it won
+        the address shown in Settings would look editable while silently
+        having no effect.
+        """
+        from django.core import mail
+
+        from cms.models import CompanyInfo
+
+        info = CompanyInfo.load()
+        info.email = "company@office.test"
+        info.save(update_fields=["email"])
+
+        mail.outbox.clear()
+        self.upload_slip()
+
+        recipients = [address for message in mail.outbox for address in message.to]
+        self.assertIn("company@office.test", recipients)
+        self.assertNotIn("head@office.test", recipients)
+
+    def test_the_environment_is_the_last_resort(self):
+        """A fresh install with nothing configured still reaches someone."""
+        from django.core import mail
+
+        from cms.models import CompanyInfo
+
+        # Model an install where nobody has opened Settings yet.
+        info = CompanyInfo.load()
+        info.email = ""
+        info.save(update_fields=["email"])
 
         mail.outbox.clear()
         self.upload_slip()

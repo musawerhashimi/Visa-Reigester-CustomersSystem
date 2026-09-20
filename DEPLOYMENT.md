@@ -51,7 +51,7 @@ Connect the repo and set **Root Directory** to `backend`. Variables:
 | `CORS_ALLOWED_ORIGINS` | `https://<frontend-domain>` |
 | `CSRF_TRUSTED_ORIGINS` | `https://<frontend-domain>` |
 | `SITE_URL` | `https://<frontend-domain>` |
-| `COMPANY_NOTIFICATION_EMAIL` | the office inbox for new applications |
+| `COMPANY_NOTIFICATION_EMAIL` | optional last-resort inbox (see below) |
 | `DJANGO_SUPERUSER_EMAIL` | optional, creates an admin on first boot |
 | `DJANGO_SUPERUSER_PASSWORD` | optional, required with the above |
 
@@ -84,6 +84,19 @@ Generate a public domain.
 2. Put that domain into the frontend's three `VITE_*` variables, deploy it.
 3. Put the frontend's domain back into the backend's `CORS_ALLOWED_ORIGINS`,
    `CSRF_TRUSTED_ORIGINS` and `SITE_URL`, then redeploy the backend.
+
+### Where office notifications go
+
+The address is resolved in the order the office can actually change things:
+
+1. The **branch** handling the application (Branches page).
+2. The **company address** in MIS → Settings.
+3. `COMPANY_NOTIFICATION_EMAIL` from the environment.
+
+The environment comes last on purpose: it only changes by redeploying, so if it
+won, the address shown in Settings would look editable while silently having no
+effect. Set it as a safety net for a fresh install, then configure the real
+addresses in the MIS.
 
 ### 5. After the first deploy
 

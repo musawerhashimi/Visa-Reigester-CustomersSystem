@@ -35,9 +35,16 @@ def scope_to_branch(queryset, user, field="branch"):
 def office_email(application):
     """The inbox that should hear about this application.
 
-    The branch handling it comes first, because that is the office that will
-    act. The company-wide address is the fallback for a branch that has not
-    set its own, and an empty result means nobody has configured one.
+    Resolved in the order the office can actually change things:
+
+    1. The branch handling it — that is the office that will act on it.
+    2. The company address set in the MIS, editable by staff at any time.
+    3. COMPANY_NOTIFICATION_EMAIL from the environment, as a deployment-level
+       fallback for an install where nobody has filled the MIS in yet.
+
+    The environment deliberately comes last. It can only be changed by
+    redeploying, so letting it win would make the address in Settings look
+    editable while silently having no effect.
     """
     from django.conf import settings
 
@@ -45,12 +52,10 @@ def office_email(application):
     if branch_email:
         return branch_email
 
-    company = getattr(settings, "COMPANY_NOTIFICATION_EMAIL", "") or ""
+    from cms.models import CompanyInfo
+
+    company = CompanyInfo.load().email or ""
     if company:
         return company
 
-    # Last resort: the address the office itself publishes on the website.
-    from cms.models import CompanyInfo
-
-    info = CompanyInfo.objects.first()
-    return (info.email if info else "") or ""
+    return getattr(settings, "COMPANY_NOTIFICATION_EMAIL", "") or ""
