@@ -1,4 +1,4 @@
-import { Compass, Mail, MapPin, Phone, Target, Users } from "lucide-react";
+import { Compass, Flag, Mail, MapPin, Phone, Target, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,7 +25,10 @@ export default function About() {
     { key: "mission", title: t("pages.missionTitle"), icon: <Target className="size-5" /> },
     { key: "vision", title: t("pages.visionTitle"), icon: <Compass className="size-5" /> },
     { key: "values", title: t("pages.valuesTitle"), icon: <Users className="size-5" /> },
+    { key: "goals", title: t("pages.goalsTitle"), icon: <Flag className="size-5" /> },
   ];
+
+  const aboutImage = mediaUrl(company?.about_image ?? null);
 
   return (
     <>
@@ -45,6 +48,16 @@ export default function About() {
 
         {company && (
           <>
+            {aboutImage && (
+              <figure className="-mt-4 overflow-hidden rounded-2xl border border-ink-200 shadow-lifted">
+                <img
+                  src={aboutImage}
+                  alt=""
+                  className="h-64 w-full object-cover sm:h-80 lg:h-96"
+                />
+              </figure>
+            )}
+
             {translate(company.history) && (
               <section>
                 <h2 className="font-display text-2xl font-bold">{t("pages.storyTitle")}</h2>

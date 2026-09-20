@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Info, Mail } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Building2, Image as ImageIcon, Info, Mail } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { TranslatedInput } from "@/components/cms/TranslatedInput";
@@ -8,9 +8,15 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import { api, apiErrorMessage } from "@/lib/api";
-import type { CompanyInfo } from "@/lib/cms";
+import { mediaUrl, type CompanyInfo } from "@/lib/cms";
 import { useAuth } from "@/stores/auth";
 import type { Translated } from "@/types/domain";
+
+/** The settings form's working copy: a picked image is a File until saved. */
+type CompanyDraft = Omit<Partial<CompanyInfo>, "logo" | "about_image"> & {
+  logo?: CompanyInfo["logo"] | File;
+  about_image?: CompanyInfo["about_image"] | File;
+};
 
 /**
  * Company settings (section 44).
@@ -30,7 +36,9 @@ export default function Settings() {
   // its branch record instead.
   const canManage = hasPermission("cms.pages.manage") && seesAllBranches;
 
-  const [form, setForm] = useState<Partial<CompanyInfo>>({});
+  // Images become a File as soon as one is chosen, so the draft is widened
+  // from CompanyInfo's string | null.
+  const [form, setForm] = useState<CompanyDraft>({});
   const [error, setError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -46,17 +54,49 @@ export default function Settings() {
   }, [data]);
 
   const save = useMutation({
-    mutationFn: () =>
-      api.patch("/cms/company/", {
+    mutationFn: () => {
+      const payload: Record<string, unknown> = {
         name: form.name,
         description: form.description,
         working_hours: form.working_hours,
+        history: form.history,
+        mission: form.mission,
+        vision: form.vision,
+        values: form.values,
+        goals: form.goals,
         address: form.address,
         phone: form.phone,
         email: form.email,
         sending_email: form.sending_email,
         website: form.website,
-      }),
+      };
+
+      // An untouched image field still holds the URL the API returned.
+      // Sending that back is rejected with "The submitted data was not a
+      // file", so only a newly picked File is included.
+      for (const field of ["logo", "about_image"] as const) {
+        if (form[field] instanceof File) payload[field] = form[field];
+      }
+
+      const hasFile = Object.values(payload).some((item) => item instanceof File);
+
+      // A picked file forces multipart; otherwise the body stays JSON so the
+      // translated fields keep their object shape. Inside multipart they
+      // travel as JSON strings instead.
+      let body: FormData | Record<string, unknown> = payload;
+      if (hasFile) {
+        const form = new FormData();
+        for (const [key, item] of Object.entries(payload)) {
+          if (item === null || item === undefined) continue;
+          if (item instanceof File) form.append(key, item);
+          else if (typeof item === "object") form.append(key, JSON.stringify(item));
+          else form.append(key, String(item));
+        }
+        body = form;
+      }
+
+      return api.patch("/cms/company/", body);
+    },
     onSuccess: () => {
       setError(null);
       // Settings is a single page with nowhere to return to, so it stays put
@@ -135,6 +175,13 @@ export default function Settings() {
           onChange={(value) => setForm((f) => ({ ...f, name: value }))}
         />
 
+        <ImageField
+          label="Logo"
+          hint="Shown in the header, footer and on the sign-in page."
+          value={form.logo}
+          onChange={(file) => setForm((f) => ({ ...f, logo: file }))}
+        />
+
         <TranslatedInput
           label="Description"
           multiline
@@ -151,6 +198,62 @@ export default function Settings() {
           value={form.working_hours as Translated | undefined}
           onChange={(value) => setForm((f) => ({ ...f, working_hours: value }))}
         />
+
+        {/* Everything the public About page renders. Each one hides itself on
+            the site when left blank, so the page can be filled in over time. */}
+        <fieldset className="space-y-5 rounded-lg border border-ink-200 p-4">
+          <legend className="px-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+            About page
+          </legend>
+
+          <TranslatedInput
+            label="Our story"
+            multiline
+            rows={6}
+            value={form.history as Translated | undefined}
+            onChange={(value) => setForm((f) => ({ ...f, history: value }))}
+            hint="The opening section. Blank lines start a new paragraph."
+          />
+
+          <TranslatedInput
+            label="Mission"
+            multiline
+            rows={4}
+            value={form.mission as Translated | undefined}
+            onChange={(value) => setForm((f) => ({ ...f, mission: value }))}
+          />
+
+          <TranslatedInput
+            label="Vision"
+            multiline
+            rows={4}
+            value={form.vision as Translated | undefined}
+            onChange={(value) => setForm((f) => ({ ...f, vision: value }))}
+          />
+
+          <TranslatedInput
+            label="Values"
+            multiline
+            rows={4}
+            value={form.values as Translated | undefined}
+            onChange={(value) => setForm((f) => ({ ...f, values: value }))}
+          />
+
+          <TranslatedInput
+            label="Goals"
+            multiline
+            rows={4}
+            value={form.goals as Translated | undefined}
+            onChange={(value) => setForm((f) => ({ ...f, goals: value }))}
+          />
+
+          <ImageField
+            label="About page photograph"
+            hint="Your office or team. Shown across the top of the About page."
+            value={form.about_image}
+            onChange={(file) => setForm((f) => ({ ...f, about_image: file }))}
+          />
+        </fieldset>
 
         <div className="space-y-1.5">
           <label htmlFor="company-address" className="block text-sm font-medium text-ink-700">
@@ -234,6 +337,94 @@ export default function Settings() {
  * password is write-only — the API never sends it back — so the field shows
  * whether one is stored rather than its value.
  */
+/**
+ * Picking an image, with the current one shown back.
+ *
+ * `value` is whatever the form holds: the URL the API returned, or a File the
+ * moment one is chosen. Showing the picture rather than a filename is what
+ * makes a wrong upload obvious before it is saved.
+ */
+function ImageField({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: string | File | null | undefined;
+  onChange: (file: File | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const chosen = value instanceof File ? value : null;
+  const existing = typeof value === "string" ? mediaUrl(value) : undefined;
+  const shown = preview ?? existing;
+
+  function choose(file: File | null) {
+    // Each object URL pins the file in memory until revoked, so the previous
+    // one goes as soon as it is replaced.
+    setPreview((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return file ? URL.createObjectURL(file) : null;
+    });
+    onChange(file);
+    if (!file && inputRef.current) inputRef.current.value = "";
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <span className="block text-sm font-medium text-ink-700">{label}</span>
+
+      <div className="flex flex-wrap items-center gap-4">
+        {shown ? (
+          <img
+            src={shown}
+            alt=""
+            className="size-20 rounded-lg border border-ink-200 object-contain"
+          />
+        ) : (
+          <span className="grid size-20 place-items-center rounded-lg border border-dashed border-ink-300 text-ink-300">
+            <ImageIcon className="size-6" aria-hidden />
+          </span>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(event) => choose(event.target.files?.[0] ?? null)}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => inputRef.current?.click()}
+          >
+            {shown ? "Replace" : "Choose image"}
+          </Button>
+          {chosen && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => choose(null)}>
+              Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {chosen && (
+        <p className="text-xs text-ink-500">
+          {chosen.name} — saved when you press Save changes.
+        </p>
+      )}
+      {hint && !chosen && <p className="text-xs text-ink-500">{hint}</p>}
+    </div>
+  );
+}
+
+
 function MailServerCard({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();

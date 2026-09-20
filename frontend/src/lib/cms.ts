@@ -115,6 +115,8 @@ export interface CompanyInfo {
   values: Translated;
   working_hours: Translated;
   logo: string | null;
+  /** A photograph for the About page — the office or the team at work. */
+  about_image: string | null;
   address: string;
   phone: string;
   email: string;

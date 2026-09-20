@@ -135,6 +135,7 @@ class CompanyInfoSerializer(TranslatedFieldMixin, serializers.ModelSerializer):
         fields = (
             "name",
             "description",
+            "about_image",
             "mission",
             "vision",
             "goals",

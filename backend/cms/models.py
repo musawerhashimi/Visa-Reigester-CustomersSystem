@@ -17,6 +17,9 @@ class CompanyInfo(TimeStampedModel):
     working_hours = TranslatedField(blank=True)
 
     logo = models.ImageField(upload_to="company/", blank=True, null=True)
+    #: A photograph for the About page — the office, or the team at work.
+    #: Kept apart from the logo: one is branding, the other is a picture.
+    about_image = models.ImageField(upload_to="company/", blank=True, null=True)
     address = models.TextField(blank=True)
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
