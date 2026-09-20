@@ -2,11 +2,12 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.http import HttpResponse
-from django.urls import include, path
+from django.urls import include, path, re_path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 
 from accounts.staff_views import StaffListView
+from core.views import public_media
 from accounts.user_views import AccountViewSet
 from applications.views import ApplicationViewSet
 from branches.views import BranchViewSet, PublicBranchListView
@@ -136,4 +137,11 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    # Django serves the whole media tree in development for convenience.
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # In production only the CMS folders are public; django.conf.urls.static
+    # serves nothing once DEBUG is off, so the site's own images would 404.
+    urlpatterns += [
+        re_path(r"^media/(?P<path>.*)$", public_media, name="public-media"),
+    ]

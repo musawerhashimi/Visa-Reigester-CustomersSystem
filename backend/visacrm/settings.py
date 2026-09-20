@@ -219,6 +219,7 @@ STORAGES = {
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Email. Console backend in development so nothing is sent by accident.

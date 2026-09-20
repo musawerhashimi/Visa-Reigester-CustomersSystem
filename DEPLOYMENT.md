@@ -107,12 +107,37 @@ addresses in the MIS.
 
 ## Uploaded files need a volume
 
-`MEDIA_ROOT` is on the container filesystem, which Railway discards on every
-deploy. **Attach a volume mounted at `/app/media` on the backend service**, or
-customer documents, receipts and logos will disappear the next time you ship.
+`MEDIA_ROOT` is `/app/media` inside the container, and Railway replaces the
+container filesystem on every deploy. Without a volume, each deploy silently
+destroys every customer document, payment slip, receipt and uploaded logo.
 
-For anything beyond a single machine, move to S3 or R2 instead: a volume is
-attached to one instance and does not survive horizontal scaling.
+**Backend service → Settings → Volumes → Add Volume**, mount path:
+
+    /app/media
+
+Do this before anyone uploads anything real. A volume added later cannot
+recover what earlier deploys already discarded.
+
+### What is public and what is not
+
+Everything lives under `/app/media`, but the two halves are served very
+differently:
+
+- **CMS imagery** — `gallery/`, `banners/`, `company/`, `news/`, `team/`,
+  `services/`, `visas/`, `activities/`, `events/`, `testimonials/` — is served
+  straight from `/media/...` because the public site links at it directly.
+- **Customer files** — `documents/`, `receipts/`, `official/`,
+  `email_attachments/` — are **not** reachable at `/media/...`. They are served
+  only through permission-checked views, so a guessed URL returns 404 instead
+  of somebody's passport.
+
+That allowlist lives in `core/views.py` as `PUBLIC_MEDIA_DIRS`. A new
+`upload_to=` folder holding customer data must stay out of it.
+
+### Beyond one instance
+
+A Railway volume attaches to a single instance. The moment the backend scales
+horizontally, or you want backups, move uploads to S3 or R2 instead.
 
 ## What this setup already handles
 
