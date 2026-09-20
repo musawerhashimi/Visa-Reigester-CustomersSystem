@@ -119,12 +119,7 @@ export default function Home() {
 
         <div className="relative mx-auto grid max-w-7xl gap-14 px-4 pb-28 pt-20 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:pb-32 lg:pt-28 lg:px-8">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-brand-100 ring-1 ring-inset ring-white/15">
-              <BadgeCheck className="size-3.5" aria-hidden />
-              {t("home.heroBadge")}
-            </span>
-
-            <h1 className="mt-6 font-display text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-[3.4rem]">
+            <h1 className="font-display text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-[3.4rem]">
               {t("home.heroTitle")}
             </h1>
 
