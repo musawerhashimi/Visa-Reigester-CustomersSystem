@@ -140,7 +140,7 @@ export default function NewApplication() {
           {t("portal.newApplication")}
         </h1>
         <p className="mt-1 text-sm text-ink-500">
-          You can save and upload your documents at the end.
+          {t("portal.saveUploadLater")}
         </p>
       </div>
 
@@ -197,7 +197,7 @@ export default function NewApplication() {
         {currentStep.key === "visa" ? (
           <fieldset>
             <legend className="text-sm font-semibold text-ink-900">
-              Which visa are you applying for?
+              {t("portal.whichVisa")}
             </legend>
             <div className="mt-4 space-y-2">
               {visaTypes?.map((visa) => (
@@ -245,7 +245,7 @@ export default function NewApplication() {
 
             {selectedVisa && selectedVisa.required_documents.length > 0 && (
               <p className="mt-4 rounded-lg bg-info-soft px-3.5 py-3 text-xs text-info">
-                You will need to upload:{" "}
+                {t("portal.youWillNeed")}{" "}
                 {selectedVisa.required_documents
                   .map((item) => translate(item.document_type.name))
                   .join(", ")}
@@ -256,11 +256,10 @@ export default function NewApplication() {
         ) : currentStep.key === "branch" ? (
           <fieldset>
             <legend className="text-sm font-semibold text-ink-900">
-              Which office should handle your application?
+              {t("portal.whichOffice")}
             </legend>
             <p className="mt-1 text-sm text-ink-500">
-              Your application is sent to this office and processed by its
-              staff.
+{t("portal.officeHint")}
             </p>
             <div className="mt-4 space-y-2">
               {branches?.map((branch) => (

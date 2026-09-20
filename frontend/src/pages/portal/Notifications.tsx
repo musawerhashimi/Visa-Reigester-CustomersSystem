@@ -62,7 +62,7 @@ export default function PortalNotifications() {
             className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700"
           >
             <Check className="size-4" aria-hidden />
-            Mark all read
+            {t("portal.markAllRead")}
           </button>
         )}
       </header>

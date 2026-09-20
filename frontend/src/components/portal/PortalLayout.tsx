@@ -175,6 +175,12 @@ export function PortalLayout() {
               <Plus className="size-4" aria-hidden />
               {t("portal.newApplication")}
             </NavLink>
+
+            {/* The header switcher is hidden below sm, so without this a
+                customer on a phone has no way to change language at all. */}
+            <div className="mt-2 border-t border-ink-200 pt-2 sm:hidden">
+              <LanguageSwitcher align="left" />
+            </div>
           </nav>
         )}
       </header>

@@ -283,7 +283,7 @@ export default function PortalApplicationDetail() {
           <p className="mt-4 flex items-start gap-2 rounded-lg bg-warning-soft px-3.5 py-3 text-sm text-warning">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
-              Upload these before you can submit:{" "}
+              {t("portal.uploadBeforeSubmit")}{" "}
               <span className="font-medium">{missing.join(", ")}</span>
             </span>
           </p>
@@ -326,9 +326,9 @@ export default function PortalApplicationDetail() {
       {tab === "documents" && (
       <section>
         <header className="border-b border-ink-200 px-5 py-4">
-          <h2 className="text-sm font-semibold">Documents to upload</h2>
+          <h2 className="text-sm font-semibold">{t("portal.documentsToUpload")}</h2>
           <p className="mt-0.5 text-xs text-ink-500">
-            Send us a photo or a PDF of each one. Up to 10 MB per file.
+            {t("portal.documentsHint")}
           </p>
         </header>
 
@@ -372,9 +372,9 @@ export default function PortalApplicationDetail() {
                 t("common.errorTitle")
               ) : (
                 <>
-                  This visa does not require any documents up front.
+                  {t("portal.noDocumentsNeeded")}
                   <span className="mt-1 block text-xs text-ink-400">
-                    We will contact you if something is needed.
+                    {t("portal.willContactYou")}
                   </span>
                 </>
               )}
@@ -393,7 +393,7 @@ export default function PortalApplicationDetail() {
           <header className="border-b border-ink-200 px-5 py-4">
             <h2 className="text-sm font-semibold">Progress</h2>
             <p className="mt-0.5 text-xs text-ink-500">
-              Every step we have taken on your application, newest first.
+              {t("portal.timelineHint")}
             </p>
           </header>
           <Timeline entries={application.timeline ?? []} />
@@ -426,6 +426,7 @@ function DocumentRow({
   onUploaded: () => void;
   onError: (message: string) => void;
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const upload = useMutation({
@@ -501,19 +502,19 @@ function DocumentRow({
               {format(new Date(existing.created_at), "d MMM yyyy")}
             </p>
           ) : (
-            <p className="mt-0.5 text-xs text-ink-400">Not uploaded yet</p>
+            <p className="mt-0.5 text-xs text-ink-400">{t("portal.notUploadedYet")}</p>
           )}
 
           {requestedMessage !== undefined && !existing && (
             <p className="mt-2 rounded-lg bg-info-soft px-3 py-2 text-xs text-info">
-              <span className="font-medium">Requested by our team</span>
+              <span className="font-medium">{t("portal.requestedByTeam")}</span>
               {requestedMessage && ` — ${requestedMessage}`}
             </p>
           )}
 
           {existing?.rejection_reason && (
             <p className="mt-2 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger">
-              <span className="font-medium">Please re-upload:</span>{" "}
+              <span className="font-medium">{t("portal.pleaseReupload")}</span>{" "}
               {existing.rejection_reason}
             </p>
           )}

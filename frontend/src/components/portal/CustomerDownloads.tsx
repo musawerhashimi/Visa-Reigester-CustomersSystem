@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Award, Download, Receipt as ReceiptIcon, Upload } from "lucide-react";
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/StatusBadge";
 import { api, apiErrorMessage } from "@/lib/api";
@@ -29,6 +30,7 @@ const KIND_LABELS: Record<OfficialDocument["kind"], string> = {
  * words, and the button says what pressing it does.
  */
 export function CustomerDownloads({ applicationId }: { applicationId: number }) {
+  const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
 
   const payments = useQuery({
@@ -76,10 +78,9 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
 
     <section>
       <header className="border-b border-ink-200 px-5 py-4">
-        <h2 className="text-sm font-semibold">Your files</h2>
+        <h2 className="text-sm font-semibold">{t("portal.yourFiles")}</h2>
         <p className="mt-0.5 text-xs text-ink-500">
-          Our office has sent you these. Press Save to keep a copy on your
-          phone or computer. They stay here, so you can come back any time.
+{t("portal.filesHint")}
         </p>
       </header>
 
@@ -91,8 +92,7 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
 
       {isEmpty && (
         <p className="px-5 py-10 text-center text-sm text-ink-500">
-          Nothing here yet. When our office sends you a document or a receipt,
-          it will appear here.
+{t("portal.nothingHereYet")}
         </p>
       )}
 
@@ -123,7 +123,7 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
               className="inline-flex items-center gap-1.5 rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
             >
               <Download className="size-4" aria-hidden />
-              Save
+              {t("portal.save")}
             </button>
           </li>
         ))}
@@ -137,8 +137,8 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
               <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-900">
                 <span className="truncate">
                   {payment.receipt!.is_bill
-                    ? `${payment.kind_label} — payment due`
-                    : `Receipt for your ${payment.kind_label.toLowerCase()}`}
+                    ? `${payment.kind_label} — ${t("portal.paymentDue")}`
+                    : `${t("portal.receiptFor")} ${payment.kind_label.toLowerCase()}`}
                 </span>
                 {/* Said plainly as well as implied by the wording: this is the
                     thing the customer is looking for. */}
@@ -152,13 +152,13 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
                 {payment.amount} {payment.currency}
                 {payment.receipt!.is_bill
                   ? ""
-                  : ` paid on ${format(new Date(payment.paid_at), "d MMMM yyyy")}`}
+                  : ` ${t("portal.paidOn")} ${format(new Date(payment.paid_at), "d MMMM yyyy")}`}
                 {" · No. "}
                 <span className="tabular">{payment.receipt!.receipt_number}</span>
               </p>
               {payment.receipt!.is_bill && payment.card_number && (
                 <p className="mt-1 text-xs text-ink-600">
-                  Pay into:{" "}
+                  {t("portal.payInto")}{" "}
                   <span className="tabular font-medium">{payment.card_number}</span>
                 </p>
               )}
@@ -174,7 +174,7 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
               className="inline-flex items-center gap-1.5 rounded-lg border border-ink-300 px-3 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
             >
               <Download className="size-4" aria-hidden />
-              Save
+              {t("portal.save")}
             </button>
           </li>
         ))}
@@ -199,6 +199,7 @@ function PaymentProofUpload({
   outstanding: boolean;
   onError: (message: string) => void;
 }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   // Held until the customer presses Send, so they can check what they picked
@@ -273,23 +274,23 @@ function PaymentProofUpload({
   return (
     <section className="card p-5">
       <h2 className="text-sm font-semibold text-ink-900">
-        Send us your payment slip
+        {t("portal.sendPaymentSlip")}
       </h2>
       <p className="mt-1 text-sm text-ink-500">
-        After you pay, send us a photo or PDF of the bank slip so we can confirm
-        it. You can send another one at any time.
+{t("portal.paymentSlipHint")}
       </p>
 
       {alreadySent.length > 0 && (
         <ul className="mt-3 space-y-1.5">
           {alreadySent.map((document) => (
             <li key={document.id} className="text-xs text-ink-500">
-              Sent {format(new Date(document.created_at), "d MMMM yyyy")} —{" "}
+              {t("portal.sentOn")}{" "}
+              {format(new Date(document.created_at), "d MMMM yyyy")} —{" "}
               {document.status === "verified"
-                ? "confirmed by our office"
+                ? t("portal.slipConfirmed")
                 : document.status === "rejected"
-                  ? "not accepted, please send another"
-                  : "waiting for our office to check it"}
+                  ? t("portal.slipRejected")
+                  : t("portal.slipWaiting")}
             </li>
           ))}
         </ul>
@@ -310,7 +311,7 @@ function PaymentProofUpload({
           className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-ink-300 px-3.5 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-ink-50"
         >
           <Upload className="size-4" aria-hidden />
-          Choose a photo or PDF
+          {t("portal.chooseFile")}
         </button>
       ) : (
         <div className="mt-4 rounded-lg border border-ink-200 bg-ink-50 p-3">
@@ -328,7 +329,7 @@ function PaymentProofUpload({
             {chosen.name}
           </p>
           <p className="mt-0.5 text-xs text-ink-500">
-            {(chosen.size / 1024).toFixed(0)} KB — not sent yet
+            {(chosen.size / 1024).toFixed(0)} KB — {t("portal.notSentYet")}
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -339,7 +340,7 @@ function PaymentProofUpload({
               className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
             >
               <Upload className="size-4" aria-hidden />
-              {upload.isPending ? "Sending…" : "Send to our office"}
+              {upload.isPending ? t("portal.sending") : t("portal.sendToOffice")}
             </button>
             <button
               type="button"
@@ -347,7 +348,7 @@ function PaymentProofUpload({
               disabled={upload.isPending}
               className="rounded-lg border border-ink-300 px-3.5 py-2 text-sm font-medium text-ink-700 transition-colors hover:bg-white disabled:opacity-60"
             >
-              Choose a different one
+              {t("portal.chooseDifferent")}
             </button>
             <button
               type="button"
@@ -355,7 +356,7 @@ function PaymentProofUpload({
               disabled={upload.isPending}
               className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-500 transition-colors hover:text-ink-800 disabled:opacity-60"
             >
-              Cancel
+              {t("portal.cancel")}
             </button>
           </div>
         </div>

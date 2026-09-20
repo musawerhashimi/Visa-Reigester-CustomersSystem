@@ -63,7 +63,7 @@ export default function PortalProfile() {
       <h1 className="font-display text-2xl font-bold">{t("portal.profile")}</h1>
 
       <section className="card p-6">
-        <h2 className="text-sm font-semibold">Your details</h2>
+        <h2 className="text-sm font-semibold">{t("portal.yourDetails")}</h2>
 
         {error && (
           <p role="alert" className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">

@@ -76,7 +76,7 @@ export default function PortalDashboard() {
             {t("portal.welcome", { name: user?.first_name || user?.email })}
           </h1>
           <p className="mt-1 text-sm text-ink-500">
-            Track your applications and respond to anything we need.
+            {t("portal.dashboardHint")}
           </p>
         </div>
         <Link to="/portal/applications/new">
