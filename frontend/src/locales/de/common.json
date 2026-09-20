@@ -74,7 +74,8 @@
     "signupPerk3": "Verfolgen Sie jede Phase in Echtzeit",
     "loginPanelTitle": "Alles zu Ihrem Antrag an einem Ort.",
     "loginPanelBody": "Prüfen Sie Ihren Status, laden Sie angeforderte Unterlagen hoch und rufen Sie Ihre Belege und Bescheide ab.",
-    "signupPrivacyNote": "Pass- und Reisedaten erfragen wir erst innerhalb eines Antrags, wo sie sicher gespeichert werden."
+    "signupPrivacyNote": "Pass- und Reisedaten erfragen wir erst innerhalb eines Antrags, wo sie sicher gespeichert werden.",
+    "backToSite": "Zurück zur Website"
   },
   "portal": {
     "dashboard": "Übersicht",

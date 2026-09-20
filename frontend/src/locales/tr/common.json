@@ -74,7 +74,8 @@
     "signupPerk3": "Her aşamayı anlık olarak izleyin",
     "loginPanelTitle": "Başvurunuzla ilgili her şey tek yerde.",
     "loginPanelBody": "Durumunuzu kontrol edin, görevlinizin istediği belgeleri yükleyin ve makbuzlarınızı ve onay belgelerinizi indirin.",
-    "signupPrivacyNote": "Pasaport ve seyahat bilgilerinizi yalnızca başvuru içinde isteriz; orada güvenle saklanır."
+    "signupPrivacyNote": "Pasaport ve seyahat bilgilerinizi yalnızca başvuru içinde isteriz; orada güvenle saklanır.",
+    "backToSite": "Siteye dön"
   },
   "portal": {
     "dashboard": "Panel",

@@ -74,7 +74,8 @@
     "signupPerk3": "Watch each stage as it happens",
     "loginPanelTitle": "Everything about your application, in one place.",
     "loginPanelBody": "Check your status, upload what your officer asked for, and download your receipts and approval documents.",
-    "signupPrivacyNote": "We only ask for passport and travel details inside an application, where they are stored securely."
+    "signupPrivacyNote": "We only ask for passport and travel details inside an application, where they are stored securely.",
+    "backToSite": "Back to website"
   },
   "portal": {
     "dashboard": "Dashboard",

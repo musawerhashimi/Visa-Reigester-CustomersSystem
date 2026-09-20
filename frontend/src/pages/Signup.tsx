@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Lock, Mail, User } from "lucide-react";
+import { AlertCircle, ArrowLeft, Lock, Mail, User } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -63,7 +63,7 @@ export default function Signup() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(50rem 40rem at 20% 0%, oklch(0.48 0.148 261 / 0.6), transparent 60%), radial-gradient(40rem 30rem at 80% 90%, oklch(0.75 0.162 68 / 0.16), transparent 55%)",
+              "radial-gradient(45rem 38rem at 15% -5%, oklch(0.56 0.152 260 / 0.55), transparent 62%), radial-gradient(38rem 32rem at 85% 95%, oklch(0.75 0.162 68 / 0.22), transparent 58%), radial-gradient(30rem 28rem at 70% 25%, oklch(0.40 0.126 262 / 0.5), transparent 60%)",
           }}
         />
         <div className="relative flex h-full flex-col justify-between p-12">
@@ -96,22 +96,42 @@ export default function Signup() {
         </div>
       </aside>
 
-      <main className="flex items-center justify-center px-4 py-12 sm:px-8">
+      <main className="relative isolate flex items-center justify-center px-4 py-12 sm:px-8">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "radial-gradient(34rem 26rem at 100% 0%, oklch(0.56 0.152 260 / 0.10), transparent 60%), radial-gradient(30rem 24rem at 0% 100%, oklch(0.75 0.162 68 / 0.10), transparent 62%)",
+          }}
+        />
         <div className="w-full max-w-md">
-          <Link to="/" className="mb-10 block lg:hidden">
+          {/* The brand panel's own logo links home, but it is hidden below
+              lg — and a labelled control says where it goes, which a logo
+              alone does not. */}
+          <Link
+            to="/"
+            className="mb-8 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900"
+          >
+            <ArrowLeft className="size-4" aria-hidden />
+            {t("auth.backToSite")}
+          </Link>
+
+          <Link to="/" className="mb-8 block lg:hidden">
             <CompanyBrand />
           </Link>
 
-          <h1 className="font-display text-2xl font-bold">{t("auth.signupTitle")}</h1>
-          <p className="mt-2 text-sm text-ink-500">{t("auth.signupSubtitle")}</p>
+          <div className="card p-6 shadow-lifted sm:p-8">
+            <h1 className="font-display text-2xl font-bold">{t("auth.signupTitle")}</h1>
+            <p className="mt-2 text-sm text-ink-500">{t("auth.signupSubtitle")}</p>
 
-          {formError && (
-            <div
-              role="alert"
-              className="mt-6 flex gap-2.5 rounded-lg bg-danger-soft px-3.5 py-3 text-sm text-danger ring-1 ring-inset ring-danger/20"
-            >
-              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>{formError}</span>
+            {formError && (
+              <div
+                role="alert"
+                className="mt-6 flex gap-2.5 rounded-lg bg-danger-soft px-3.5 py-3 text-sm text-danger ring-1 ring-inset ring-danger/20"
+              >
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>{formError}</span>
             </div>
           )}
 
@@ -190,6 +210,7 @@ export default function Signup() {
               {t("auth.submitLogin")}
             </Link>
           </p>
+          </div>
 
           {/* The dark panel carrying the copyright is hidden below lg, so on a
               phone the page would otherwise end with no company name at all. */}
