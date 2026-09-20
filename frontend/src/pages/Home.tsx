@@ -7,6 +7,7 @@ import {
   Headphones,
   Plane,
   ShieldCheck,
+  Star,
   Users,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import {
   mediaUrl,
   usePublicContent,
@@ -42,6 +44,16 @@ const HOW_IT_WORKS = [
   "home.step3",
   "home.step4",
 ] as const;
+
+/** Up to two initials, for a customer who has not sent a photograph. */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
 
 const REASONS = [
   { icon: FileCheck2, key: "home.reason1" },
@@ -362,23 +374,66 @@ export default function Home() {
       {(testimonials.data?.length ?? 0) > 0 && (
         <Section title={t("home.testimonials")}>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {testimonials.data?.map((item) => (
-              <figure key={item.id} className="card p-6">
-                <blockquote className="text-sm leading-relaxed text-ink-700">
-                  “{translate(item.content)}”
-                </blockquote>
-                <figcaption className="mt-4 text-sm">
-                  <span className="font-medium text-ink-900">
-                    {item.customer_name}
-                  </span>
-                  {translate(item.role) && (
-                    <span className="ml-1.5 text-ink-500">
-                      · {translate(item.role)}
-                    </span>
+            {testimonials.data?.map((item) => {
+              const photo = mediaUrl(item.photo);
+              return (
+                <figure key={item.id} className="card flex flex-col p-6">
+                  {item.rating > 0 && (
+                    <div
+                      className="flex gap-0.5 text-accent-500"
+                      aria-label={`${item.rating} out of 5`}
+                    >
+                      {Array.from({ length: 5 }, (_, index) => (
+                        <Star
+                          key={index}
+                          className={cn(
+                            "size-4",
+                            index < item.rating
+                              ? "fill-current"
+                              : "text-ink-200",
+                          )}
+                          aria-hidden
+                        />
+                      ))}
+                    </div>
                   )}
-                </figcaption>
-              </figure>
-            ))}
+
+                  <blockquote className="mt-4 flex-1 text-sm leading-relaxed text-ink-700">
+                    “{translate(item.content)}”
+                  </blockquote>
+
+                  <figcaption className="mt-5 flex items-center gap-3">
+                    {photo ? (
+                      <img
+                        src={photo}
+                        alt=""
+                        loading="lazy"
+                        className="size-10 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      // Initials rather than a stock silhouette: a real
+                      // customer without a photograph still reads as a person.
+                      <span
+                        className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700"
+                        aria-hidden
+                      >
+                        {initials(item.customer_name)}
+                      </span>
+                    )}
+                    <span className="min-w-0 text-sm">
+                      <span className="block truncate font-medium text-ink-900">
+                        {item.customer_name}
+                      </span>
+                      {translate(item.role) && (
+                        <span className="block truncate text-ink-500">
+                          {translate(item.role)}
+                        </span>
+                      )}
+                    </span>
+                  </figcaption>
+                </figure>
+              );
+            })}
           </div>
         </Section>
       )}
