@@ -49,9 +49,9 @@ export default function About() {
 
         {company && (
           <>
-            {/* Story and photograph side by side. Stacked, the picture pushed
-                the text below the fold and the two read as unrelated blocks.
-                Either one alone still fills the row. */}
+            {/* Photograph and story side by side. Stacked full-width, the
+                picture pushed the text below the fold and the two read as
+                unrelated blocks. Either one alone still fills the row. */}
             {(translate(company.history) || aboutImage) && (
               <section
                 className={cn(
@@ -61,6 +61,16 @@ export default function About() {
                   translate(company.history) && aboutImage && "lg:grid-cols-2",
                 )}
               >
+                {aboutImage && (
+                  <figure className="overflow-hidden rounded-2xl border border-ink-200 shadow-lifted lg:sticky lg:top-24">
+                    <img
+                      src={aboutImage}
+                      alt=""
+                      className="h-64 w-full object-cover sm:h-80 lg:h-[26rem]"
+                    />
+                  </figure>
+                )}
+
                 {translate(company.history) && (
                   <div>
                     <h2 className="font-display text-2xl font-bold">
@@ -70,16 +80,6 @@ export default function About() {
                       <RichText text={translate(company.history)} />
                     </div>
                   </div>
-                )}
-
-                {aboutImage && (
-                  <figure className="overflow-hidden rounded-2xl border border-ink-200 shadow-lifted lg:sticky lg:top-24">
-                    <img
-                      src={aboutImage}
-                      alt=""
-                      className="h-64 w-full object-cover sm:h-80 lg:h-[26rem]"
-                    />
-                  </figure>
                 )}
               </section>
             )}
