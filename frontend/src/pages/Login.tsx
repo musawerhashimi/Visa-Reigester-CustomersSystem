@@ -90,6 +90,20 @@ export default function Login() {
       </aside>
 
       <main className="relative isolate flex items-center justify-center px-4 py-12 sm:px-8">
+        {/* Icon only, in the corner. The label was redundant next to an arrow
+            everyone already reads as "back", and it crowded the form. The
+            accessible name carries the meaning instead. */}
+        <Link
+          to="/"
+          aria-label={t("auth.backToSite")}
+          title={t("auth.backToSite")}
+          className="group absolute left-4 top-4 z-10 grid size-10 place-items-center rounded-full border border-ink-200 bg-white/80 text-ink-600 shadow-subtle backdrop-blur-sm transition-colors hover:border-ink-300 hover:text-ink-900 sm:left-6 sm:top-6"
+        >
+          <ArrowLeft
+            className="size-5 transition-transform group-hover:-translate-x-0.5"
+            aria-hidden
+          />
+        </Link>
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 -z-10"
@@ -99,21 +113,6 @@ export default function Login() {
           }}
         />
         <div className="w-full max-w-sm">
-          {/* The brand panel's own logo links home, but it is hidden below
-              lg — and a labelled control says where it goes, which a logo
-              alone does not. A bordered pill reads as a control rather than
-              as stray text above the form. */}
-          <Link
-            to="/"
-            className="group mb-6 inline-flex items-center gap-1.5 rounded-full lg:mb-8 border border-ink-200 bg-white/70 py-1.5 pl-2.5 pr-3.5 text-sm font-medium text-ink-600 shadow-subtle backdrop-blur-sm transition-colors hover:border-ink-300 hover:text-ink-900"
-          >
-            <ArrowLeft
-              className="size-4 transition-transform group-hover:-translate-x-0.5"
-              aria-hidden
-            />
-            {t("auth.backToSite")}
-          </Link>
-
           {/* Centred below lg, where the brand panel is hidden and this is the
               only thing identifying whose site this is. */}
           <Link to="/" className="mb-8 flex justify-center lg:hidden">
