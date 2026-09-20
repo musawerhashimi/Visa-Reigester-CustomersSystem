@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { PublicLayout } from "@/components/layout/PublicLayout";
+import { DocumentHead } from "@/components/layout/DocumentHead";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { MISLayout } from "@/components/mis/MISLayout";
 import { PortalLayout } from "@/components/portal/PortalLayout";
@@ -98,6 +99,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <BrowserRouter>
+          {/* Sets the tab title and favicon from the company record. */}
+          <DocumentHead />
           <ScrollToTop />
         <Suspense fallback={<PageFallback />}>
           <Routes>

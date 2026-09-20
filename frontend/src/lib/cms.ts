@@ -182,12 +182,31 @@ export function useCompanyInfo() {
 /**
  * Resolve a media path to a URL the browser can load.
  *
- * Django returns a relative path when no absolute URI is configured; in
- * development the API lives on a different port from the dev server.
+ * Django returns a relative path when no absolute URI is configured. The two
+ * services are on different origins in production and different ports in
+ * development, so a bare "/media/..." would resolve against whichever host is
+ * serving the page — the frontend, which holds no uploads.
+ *
+ * Falls back to the API origin when VITE_MEDIA_BASE_URL is unset, since
+ * Django serves both from the same host. Without that a deployment missing
+ * one variable shows no images at all and gives no clue why.
  */
 export function mediaUrl(path: string | null | undefined): string | undefined {
   if (!path) return undefined;
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  const base = import.meta.env.VITE_MEDIA_BASE_URL ?? "";
+
+  const configured = import.meta.env.VITE_MEDIA_BASE_URL;
+  const base = (configured || apiOrigin()).replace(/\/+$/, "");
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+/** The backend's origin, taken from the API URL the bundle was built with. */
+function apiOrigin(): string {
+  const api = import.meta.env.VITE_API_BASE_URL;
+  if (!api) return "";
+  try {
+    return new URL(api, window.location.origin).origin;
+  } catch {
+    return "";
+  }
 }
