@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
@@ -92,7 +93,18 @@ application_document_request = ApplicationDocumentView.as_view(
     {"post": "request_document"}
 )
 
+def healthz(_request):
+    """Liveness probe for the platform.
+
+    Deliberately touches nothing — no database, no cache. It answers whether
+    this process is up, so a database outage does not also destroy the deploy
+    by failing the healthcheck.
+    """
+    return HttpResponse("ok", content_type="text/plain")
+
+
 urlpatterns = [
+    path("healthz/", healthz, name="healthz"),
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
     path("api/", include(router.urls)),

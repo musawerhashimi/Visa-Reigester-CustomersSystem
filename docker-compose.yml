@@ -1,64 +1,64 @@
+# Local mirror of the Railway topology: two independent services on their own
+# origins, plus Postgres. Redis is here too, because Channels needs a real
+# broker once the app runs as more than one process.
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-visacrm}
       POSTGRES_USER: ${POSTGRES_USER:-visacrm}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-visacrm}
+      POSTGRES_DB: ${POSTGRES_DB:-visacrm}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-visacrm}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-visacrm} -d ${POSTGRES_DB:-visacrm}"]
       interval: 5s
+      timeout: 5s
       retries: 10
-    ports:
-      - "5432:5432"
+    networks: [app_network]
 
   redis:
     image: redis:7-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 5s
       retries: 10
+    networks: [app_network]
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.backend
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py collectstatic --noinput &&
-             daphne -b 0.0.0.0 -p 8000 visacrm.asgi:application"
-    env_file: .env
+    build: { context: ./backend, dockerfile: Dockerfile }
+    env_file: [.env]
     environment:
-      POSTGRES_HOST: db
+      # Overrides any DATABASE_URL in .env — points Django at the db service.
+      DATABASE_URL: postgres://${POSTGRES_USER:-visacrm}:${POSTGRES_PASSWORD:-visacrm}@db:5432/${POSTGRES_DB:-visacrm}
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./backend:/app
-      - media_data:/app/media
-    ports:
-      - "8000:8000"
+      - ./backend:/app        # dev convenience; DROP for a true prod image
+      - media:/app/media      # persist uploads across restarts
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    ports: ["8000:8000"]
+    networks: [app_network]
 
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    command: npm run dev -- --host 0.0.0.0
-    environment:
-      VITE_API_BASE_URL: http://localhost:8000/api
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into the bundle at build time, not read at runtime.
+        VITE_API_BASE_URL: http://localhost:8000/api
+        VITE_WS_BASE_URL: ws://localhost:8000
+        VITE_MEDIA_BASE_URL: http://localhost:8000
+    environment: { PORT: 80 }
+    ports: ["8080:80"]
+    depends_on: [backend]
+    networks: [app_network]
 
 volumes:
-  postgres_data:
-  media_data:
+  pgdata:
+  media:
+
+networks:
+  app_network: { driver: bridge }

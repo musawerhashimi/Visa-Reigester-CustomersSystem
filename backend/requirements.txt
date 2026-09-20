@@ -13,3 +13,6 @@ drf-spectacular==0.27.2
 reportlab==5.0.1
 # Encrypts the SMTP password before it is stored (core/encryption.py).
 cryptography==50.0.1
+# Serves the admin's static files from the app process, so no second web
+# server is needed just for /static/.
+whitenoise==6.7.0

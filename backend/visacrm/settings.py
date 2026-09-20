@@ -16,9 +16,42 @@ def env_list(name, default=""):
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 
+def _database_from_url(url):
+    """Parse a postgres:// URL into Django's DATABASES shape.
+
+    Written by hand rather than pulling in dj-database-url: it is one function,
+    and the project already reads its configuration through os.getenv.
+    """
+    from urllib.parse import unquote, urlparse
+
+    parsed = urlparse(url)
+    return {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": parsed.path.lstrip("/"),
+        "USER": unquote(parsed.username or ""),
+        "PASSWORD": unquote(parsed.password or ""),
+        "HOST": parsed.hostname or "",
+        "PORT": str(parsed.port or "5432"),
+        "CONN_MAX_AGE": 600,
+    }
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0")
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+
+# Railway sets these itself. Trusting them means a fresh deploy works before
+# anyone has hand-written the domain into DJANGO_ALLOWED_HOSTS.
+_railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+if _railway_domain:
+    ALLOWED_HOSTS.append(_railway_domain)
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_railway_domain}")
+if os.getenv("RAILWAY_ENVIRONMENT") or _railway_domain:
+    # Private networking between services uses .railway.internal.
+    ALLOWED_HOSTS += [".railway.app", ".railway.internal"]
+    if os.getenv("RAILWAY_PRIVATE_DOMAIN"):
+        ALLOWED_HOSTS.append(os.getenv("RAILWAY_PRIVATE_DOMAIN"))
 
 INSTALLED_APPS = [
     "daphne",
@@ -54,6 +87,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Directly after SecurityMiddleware, as WhiteNoise requires.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -85,7 +120,11 @@ ASGI_APPLICATION = "visacrm.asgi.application"
 
 # Postgres in Docker; SQLite locally so the project runs without a database
 # server installed.
-if os.getenv("POSTGRES_DB"):
+if os.getenv("DATABASE_URL"):
+    # Railway's Postgres plugin injects DATABASE_URL rather than the separate
+    # POSTGRES_* variables, so it is preferred when present.
+    DATABASES = {"default": _database_from_url(os.getenv("DATABASE_URL"))}
+elif os.getenv("POSTGRES_DB"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -171,6 +210,12 @@ CONTENT_LANGUAGES = ("en", "de", "tr")
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
@@ -200,9 +245,16 @@ APPLICATION_NUMBER_PREFIX = os.getenv("APPLICATION_NUMBER_PREFIX", "VISA")
 RECEIPT_NUMBER_PREFIX = os.getenv("RECEIPT_NUMBER_PREFIX", "RCPT")
 
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
+    # The platform probes over plain HTTP; a 301 here reads as a failed
+    # healthcheck and the deploy is rolled back with no useful error.
+    SECURE_REDIRECT_EXEMPT = [r"^healthz/?$"]
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    # Required behind Railway's proxy: without it Django sees plain HTTP on
+    # every request and SECURE_SSL_REDIRECT loops forever.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

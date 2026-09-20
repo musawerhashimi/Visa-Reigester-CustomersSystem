@@ -1,0 +1,24 @@
+server {
+    listen       ${PORT};
+    server_name  _;
+
+    root   /usr/share/nginx/html;
+    index  index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript
+               application/xml text/xml image/svg+xml;
+    gzip_min_length 1024;
+
+    # Long-cache the content-hashed Vite assets.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # SPA fallback: every other route serves index.html (React Router).
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
