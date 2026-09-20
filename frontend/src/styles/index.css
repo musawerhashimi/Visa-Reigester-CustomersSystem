@@ -147,6 +147,85 @@
   animation: toast-in 150ms ease-out;
 }
 
+/*
+ * The primary call to action.
+ *
+ * A slow breathing glow draws the eye without the jitter of a bounce, and a
+ * sheen sweeps across the face every few seconds. Both are long and gentle on
+ * purpose: this sits on the page the whole time a visitor is reading, and an
+ * insistent animation becomes something to look away from.
+ */
+@keyframes cta-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 1px 2px oklch(0.19 0.048 265 / 0.05),
+      0 0 0 0 oklch(0.75 0.162 68 / 0.55);
+  }
+  50% {
+    box-shadow:
+      0 1px 2px oklch(0.19 0.048 265 / 0.05),
+      0 0 0 0.55rem oklch(0.75 0.162 68 / 0);
+  }
+}
+
+@keyframes cta-sheen {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  /* Idle for most of the cycle, so the sweep reads as an occasional
+     highlight rather than a spinner. */
+  38%,
+  100% {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+.cta-pulse {
+  position: relative;
+  overflow: hidden;
+  animation: cta-pulse 2.8s ease-out infinite;
+}
+
+/* The label and icon sit above the sheen, which would otherwise wash over
+   the text instead of behind it. */
+.cta-pulse > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cta-pulse::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inline-size: 35%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    oklch(1 0 0 / 0.45),
+    transparent
+  );
+  animation: cta-sheen 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Hovering is already a commitment; the glow stops competing at that point. */
+.cta-pulse:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The global rule below only shortens durations, which would leave this
+     looping invisibly fast. It has to stop altogether. */
+  .cta-pulse,
+  .cta-pulse::after {
+    animation: none !important;
+  }
+  .cta-pulse::after {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

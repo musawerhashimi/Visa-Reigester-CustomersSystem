@@ -129,7 +129,12 @@ export default function Home() {
 
             <div className="mt-9 flex flex-wrap gap-3">
               <Link to="/signup">
-                <Button size="lg" variant="accent" icon={<ArrowRight className="size-4" />}>
+                <Button
+                  size="lg"
+                  variant="accent"
+                  className="cta-pulse"
+                  icon={<ArrowRight className="size-4" />}
+                >
                   {t("home.applyNow")}
                 </Button>
               </Link>
@@ -453,7 +458,12 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link to="/signup">
-                <Button size="lg" variant="accent" icon={<ArrowRight className="size-4" />}>
+                <Button
+                  size="lg"
+                  variant="accent"
+                  className="cta-pulse"
+                  icon={<ArrowRight className="size-4" />}
+                >
                   {t("home.applyNow")}
                 </Button>
               </Link>
