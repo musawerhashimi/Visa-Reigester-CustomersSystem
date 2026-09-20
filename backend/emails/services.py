@@ -172,6 +172,7 @@ def send_email(
     is_automatic=True,
     attachments=None,
     cc=None,
+    branch=None,
 ):
     """Send and log one email. Returns the EmailLog either way.
 
@@ -194,14 +195,18 @@ def send_email(
 
     try:
         # Mail about an application goes out as the branch handling it.
-        branch = application.branch if application is not None else None
+        # `branch` covers the rest — a password reset, say, which belongs to a
+        # customer rather than to any one application.
+        sender_branch = branch or (
+            application.branch if application is not None else None
+        )
         message = EmailMessage(
             subject=subject,
             body=body,
-            from_email=sender_address(branch),
+            from_email=sender_address(sender_branch),
             to=[to_email],
             cc=cc or None,
-            connection=mail_connection(branch),
+            connection=mail_connection(sender_branch),
         )
         for attachment in attachments or []:
             message.attach(

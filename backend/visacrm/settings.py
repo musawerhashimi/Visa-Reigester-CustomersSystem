@@ -178,7 +178,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_THROTTLE_RATES": {"anon": "60/min", "user": "1000/hour", "login": "10/min"},
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "60/min",
+        "user": "1000/hour",
+        "login": "10/min",
+        # Each call changes a real password, so this is deliberately tight.
+        "forgot_password": "5/hour",
+    },
 }
 
 SIMPLE_JWT = {

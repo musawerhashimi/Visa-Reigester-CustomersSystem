@@ -12,5 +12,10 @@ urlpatterns = [
     path("token/verify/", TokenVerifyView.as_view(), name="token-verify"),
     path("me/", views.MeView.as_view(), name="me"),
     path("change-password/", views.ChangePasswordView.as_view(), name="change-password"),
+    path(
+        "forgot-password/",
+        views.ForgotPasswordView.as_view(),
+        name="forgot-password",
+    ),
     path("login-history/", views.LoginHistoryView.as_view(), name="login-history"),
 ]

@@ -183,3 +183,12 @@ def _client_ip(request):
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.META.get("REMOTE_ADDR")
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    """Just the address. The response never says whether it matched."""
+
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()

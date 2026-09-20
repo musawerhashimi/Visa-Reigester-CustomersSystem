@@ -74,7 +74,12 @@
     "loginPanelTitle": "Başvurunuzla ilgili her şey tek yerde.",
     "loginPanelBody": "Durumunuzu kontrol edin, görevlinizin istediği belgeleri yükleyin ve makbuzlarınızı ve onay belgelerinizi indirin.",
     "signupPrivacyNote": "Pasaport ve seyahat bilgilerinizi yalnızca başvuru içinde isteriz; orada güvenle saklanır.",
-    "backToSite": "Siteye dön"
+    "backToSite": "Siteye dön",
+    "forgotTitle": "Şifrenizi sıfırlayın",
+    "forgotSubtitle": "E-posta adresinizi girin, size yeni bir şifre gönderelim.",
+    "forgotSubmit": "Bana yeni şifre gönder",
+    "forgotSent": "Bu adrese ait bir hesap varsa, yeni şifre yolda. Gelen kutunuzu kontrol edip onunla giriş yapın.",
+    "backToLogin": "Girişe dön"
   },
   "portal": {
     "dashboard": "Panel",

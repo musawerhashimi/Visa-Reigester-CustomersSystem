@@ -15,6 +15,7 @@ import type { UserRole } from "@/types/domain";
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Signup = lazy(() => import("@/pages/Signup"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const About = lazy(() => import("@/pages/public/About"));
 const Services = lazy(() => import("@/pages/public/Services"));
 const Visas = lazy(() => import("@/pages/public/Visas"));
@@ -118,6 +119,7 @@ export default function App() {
 
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             <Route
               path="/mis"

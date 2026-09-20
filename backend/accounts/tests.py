@@ -1,7 +1,7 @@
 """Account administration, and the privilege boundaries around it."""
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from audit.models import AuditLog
@@ -382,3 +382,105 @@ class AccountAdministrationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(len(response.data), 1)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class ForgotPasswordTests(TestCase):
+    """Resetting a forgotten password by email."""
+
+    def setUp(self):
+        # The endpoint is rate limited, and DRF keeps the counter in the cache
+        # between tests — without this, whichever test runs fourth is
+        # throttled rather than exercised.
+        from django.core.cache import cache
+
+        cache.clear()
+
+        self.user = User.objects.create_user(
+            email="locked.out@test.local",
+            password="OriginalPass2026!",
+            first_name="Sara",
+            last_name="Noori",
+        )
+
+    def ask(self, email):
+        return self.client.post(
+            "/api/auth/forgot-password/", {"email": email}, format="json"
+        )
+
+    def test_a_new_password_is_issued_and_emailed(self):
+        from django.core import mail
+
+        mail.outbox.clear()
+        response = self.ask(self.user.email)
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password("OriginalPass2026!"))
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("locked.out@test.local", mail.outbox[0].to)
+
+    def test_the_emailed_password_actually_works(self):
+        """A password the customer cannot sign in with is worse than none."""
+        import re
+
+        from django.core import mail
+
+        mail.outbox.clear()
+        self.ask(self.user.email)
+
+        match = re.search(r"Temporary password: (\S+)", mail.outbox[0].body)
+        self.assertIsNotNone(match)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password(match.group(1)))
+
+    def test_the_email_carries_a_link_to_sign_in(self):
+        from django.core import mail
+
+        mail.outbox.clear()
+        self.ask(self.user.email)
+        self.assertIn("/login", mail.outbox[0].body)
+
+    def test_an_unknown_address_is_answered_the_same_way(self):
+        """Otherwise this becomes a way to discover who holds an account."""
+        from django.core import mail
+
+        mail.outbox.clear()
+        known = self.ask(self.user.email)
+
+        mail.outbox.clear()
+        unknown = self.ask("nobody@test.local")
+
+        self.assertEqual(unknown.status_code, known.status_code)
+        self.assertEqual(unknown.data["detail"], known.data["detail"])
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_an_inactive_account_is_not_reset(self):
+        from django.core import mail
+
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+
+        mail.outbox.clear()
+        self.assertEqual(self.ask(self.user.email).status_code, 200)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("OriginalPass2026!"))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_repeated_requests_are_throttled(self):
+        """Each call changes a real password, so this cannot be spammed."""
+        codes = [self.ask(self.user.email).status_code for _ in range(7)]
+        self.assertIn(429, codes)
+
+    def test_the_address_is_matched_regardless_of_case(self):
+        from django.core import mail
+
+        mail.outbox.clear()
+        self.ask("Locked.Out@Test.Local")
+
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.check_password("OriginalPass2026!"))
+        self.assertEqual(len(mail.outbox), 1)

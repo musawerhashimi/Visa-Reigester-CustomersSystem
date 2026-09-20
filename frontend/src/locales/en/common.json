@@ -74,7 +74,12 @@
     "loginPanelTitle": "Everything about your application, in one place.",
     "loginPanelBody": "Check your status, upload what your officer asked for, and download your receipts and approval documents.",
     "signupPrivacyNote": "We only ask for passport and travel details inside an application, where they are stored securely.",
-    "backToSite": "Back to website"
+    "backToSite": "Back to website",
+    "forgotTitle": "Reset your password",
+    "forgotSubtitle": "Enter your email address and we will send you a new password.",
+    "forgotSubmit": "Send me a new password",
+    "forgotSent": "If that address has an account, a new password is on its way. Check your inbox, then sign in with it.",
+    "backToLogin": "Back to sign in"
   },
   "portal": {
     "dashboard": "Dashboard",

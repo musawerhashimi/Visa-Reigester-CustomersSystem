@@ -74,7 +74,12 @@
     "loginPanelTitle": "Alles zu Ihrem Antrag an einem Ort.",
     "loginPanelBody": "Prüfen Sie Ihren Status, laden Sie angeforderte Unterlagen hoch und rufen Sie Ihre Belege und Bescheide ab.",
     "signupPrivacyNote": "Pass- und Reisedaten erfragen wir erst innerhalb eines Antrags, wo sie sicher gespeichert werden.",
-    "backToSite": "Zurück zur Website"
+    "backToSite": "Zurück zur Website",
+    "forgotTitle": "Passwort zurücksetzen",
+    "forgotSubtitle": "Geben Sie Ihre E-Mail-Adresse ein, und wir senden Ihnen ein neues Passwort.",
+    "forgotSubmit": "Neues Passwort senden",
+    "forgotSent": "Falls zu dieser Adresse ein Konto besteht, ist ein neues Passwort unterwegs. Prüfen Sie Ihr Postfach und melden Sie sich damit an.",
+    "backToLogin": "Zurück zur Anmeldung"
   },
   "portal": {
     "dashboard": "Übersicht",
