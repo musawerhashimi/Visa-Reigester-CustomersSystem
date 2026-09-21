@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -100,8 +102,14 @@ def healthz(_request):
     Deliberately touches nothing — no database, no cache. It answers whether
     this process is up, so a database outage does not also destroy the deploy
     by failing the healthcheck.
+
+    It also names the running build. A deploy that silently keeps serving old
+    code is otherwise invisible: the site looks healthy and only the newest
+    feature is missing, which reads as a bug in that feature rather than a
+    stale container. Railway injects the commit as RAILWAY_GIT_COMMIT_SHA.
     """
-    return HttpResponse("ok", content_type="text/plain")
+    build = os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("GIT_COMMIT") or "unknown"
+    return HttpResponse(f"ok {build[:12]}", content_type="text/plain")
 
 
 urlpatterns = [
