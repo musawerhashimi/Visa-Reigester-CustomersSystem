@@ -20,8 +20,12 @@ interface Customer {
   country: string;
   status: "active" | "inactive" | "archived";
   application_count: number;
-  /** The offices handling this customer, via the applications they made. */
-  branches: { id: number; name: string; code: string }[];
+  /**
+   * The offices handling this customer, via the applications they made.
+   * Optional: a response from a backend predating this field omits it, and
+   * a missing branch must not blank the whole directory.
+   */
+  branches?: { id: number; name: string; code: string }[];
   created_at: string;
 }
 
@@ -190,7 +194,7 @@ export default function Customers() {
                     {/* A customer reaches a branch by applying there, and may
                         have applied at more than one, so every office that
                         handles them is listed. */}
-                    {customer.branches.length > 0 ? (
+                    {customer.branches && customer.branches.length > 0 ? (
                       <span className="text-ink-700">
                         {customer.branches.map((branch) => branch.name).join(", ")}
                       </span>
