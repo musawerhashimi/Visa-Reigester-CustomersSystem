@@ -4,10 +4,13 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  BookUser,
+  Briefcase,
   Mail,
   Phone,
+  Plane,
   Send,
-  UserPlus,
+  UserRound,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -24,6 +27,7 @@ import {
   PriorityBadge,
 } from "@/components/ui/StatusBadge";
 import { api, apiErrorMessage } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import { translate } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
 import type {
@@ -32,7 +36,6 @@ import type {
   InternalNote,
   Paginated,
   StatusOption,
-  User,
 } from "@/types/domain";
 
 type Tab =
@@ -145,15 +148,6 @@ export default function ApplicationDetail() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {hasPermission("applications.assign") && (
-              <AssignControl
-                applicationId={applicationId}
-                currentId={application.assigned_to?.id ?? null}
-                onDone={refresh}
-                onError={setActionError}
-              />
-            )}
-
             <NextActions
               transitions={transitions}
               pending={changeStatus.isPending}
@@ -412,58 +406,6 @@ function NextActions({
   );
 }
 
-function AssignControl({
-  applicationId,
-  currentId,
-  onDone,
-  onError,
-}: {
-  applicationId: number;
-  currentId: number | null;
-  onDone: () => void;
-  onError: (message: string) => void;
-}) {
-  const { data: staff } = useQuery({
-    queryKey: ["mis", "staff"],
-    queryFn: async () => {
-      const { data } = await api.get<User[]>("/staff/");
-      return data;
-    },
-  });
-
-  const assign = useMutation({
-    mutationFn: (staffId: number) =>
-      api.post(`/applications/${applicationId}/assign/`, { staff_id: staffId }),
-    onSuccess: onDone,
-    onError: (error) => onError(apiErrorMessage(error, "Could not assign.")),
-  });
-
-  return (
-    <div className="relative">
-      <UserPlus
-        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400"
-        aria-hidden
-      />
-      <select
-        value={currentId ?? ""}
-        onChange={(event) => {
-          if (event.target.value) assign.mutate(Number(event.target.value));
-        }}
-        disabled={assign.isPending}
-        aria-label="Assign to officer"
-        className="rounded-lg border border-ink-300 bg-white py-2 pl-9 pr-3 text-sm font-medium text-ink-700 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:opacity-50"
-      >
-        <option value="">Assign to…</option>
-        {staff?.map((person) => (
-          <option key={person.id} value={person.id}>
-            {person.full_name || person.email}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
 function RequestDocumentForm({
   applicationId,
   onDone,
@@ -625,83 +567,180 @@ function InternalNotes({ applicationId }: { applicationId: number }) {
   );
 }
 
+type DetailRow = {
+  label: string;
+  value: ReactNode;
+  /** Free text that needs the full width rather than a narrow value column. */
+  wide?: boolean;
+  /** Drawn in the danger tone, for a passport that has already expired. */
+  alert?: boolean;
+};
+
+/** A date as staff read it, not as the API stores it. */
+function readableDate(value: string | null) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : format(parsed, "d MMM yyyy");
+}
+
+/** Values arrive as snake_case choices; "not_specified" should not be shown raw. */
+function readableChoice(value: string) {
+  if (!value) return "";
+  return value.replace(/_/g, " ").replace(/^./, (first) => first.toUpperCase());
+}
+
+function isExpired(value: string | null) {
+  if (!value) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed < new Date();
+}
+
+/**
+ * The application as the customer filled it in.
+ *
+ * Grouped into cards rather than one long list: a reviewer checking a
+ * passport should not have to read past somebody's mother's name to find it.
+ * The groups are uneven, so they flow in balanced columns instead of a rigid
+ * grid, which previously left ragged gaps between the short ones.
+ */
 function DetailFields({ application }: { application: Application }) {
-  const groups: { title: string; rows: [string, ReactNode][] }[] = [
+  const groups: {
+    title: string;
+    icon: ReactNode;
+    rows: DetailRow[];
+  }[] = [
     {
       title: "Personal",
+      icon: <UserRound className="size-4" aria-hidden />,
       rows: [
-        ["Full name", application.full_name],
-        ["Father's name", application.father_name],
-        ["Mother's name", application.mother_name],
-        ["Date of birth", application.date_of_birth],
-        ["Place of birth", application.place_of_birth],
-        ["Gender", application.gender],
-        ["Nationality", application.nationality],
-        ["Marital status", application.marital_status],
+        { label: "Full name", value: application.full_name },
+        { label: "Father's name", value: application.father_name },
+        { label: "Mother's name", value: application.mother_name },
+        { label: "Date of birth", value: readableDate(application.date_of_birth) },
+        { label: "Place of birth", value: application.place_of_birth },
+        { label: "Gender", value: readableChoice(application.gender) },
+        { label: "Nationality", value: application.nationality },
+        { label: "Marital status", value: readableChoice(application.marital_status) },
       ],
     },
     {
       title: "Contact",
+      icon: <Phone className="size-4" aria-hidden />,
       rows: [
-        ["Email", application.email],
-        ["Phone", application.phone],
-        ["Alternative phone", application.alternative_phone],
-        ["Address", application.current_address],
-        ["City", application.city],
-        ["Country", application.country],
+        { label: "Email", value: application.email },
+        { label: "Phone", value: application.phone },
+        { label: "Alternative phone", value: application.alternative_phone },
+        { label: "Address", value: application.current_address, wide: true },
+        { label: "City", value: application.city },
+        { label: "Country", value: application.country },
       ],
     },
     {
       title: "Passport",
+      icon: <BookUser className="size-4" aria-hidden />,
       rows: [
-        ["Number", application.passport_number],
-        ["Type", application.passport_type],
-        ["Issued", application.passport_issue_date],
-        ["Expires", application.passport_expiry_date],
-        ["Issuing country", application.passport_issue_country],
+        { label: "Number", value: application.passport_number },
+        { label: "Type", value: readableChoice(application.passport_type) },
+        { label: "Issued", value: readableDate(application.passport_issue_date) },
+        {
+          label: "Expires",
+          value: readableDate(application.passport_expiry_date),
+          // A passport that expired before the trip is the single most
+          // common reason to reject, so it is flagged rather than read.
+          alert: isExpired(application.passport_expiry_date),
+        },
+        { label: "Issuing country", value: application.passport_issue_country },
       ],
     },
     {
       title: "Travel",
+      icon: <Plane className="size-4" aria-hidden />,
       rows: [
-        ["Purpose", application.purpose_of_travel],
-        ["Expected travel", application.expected_travel_date],
-        ["Expected return", application.expected_return_date],
-        ["Previous visa", application.previous_visa],
-        ["Travel history", application.previous_travel_history],
+        { label: "Purpose", value: application.purpose_of_travel, wide: true },
+        { label: "Expected travel", value: readableDate(application.expected_travel_date) },
+        { label: "Expected return", value: readableDate(application.expected_return_date) },
+        { label: "Previous visa", value: application.previous_visa },
+        { label: "Travel history", value: application.previous_travel_history, wide: true },
       ],
     },
     {
       title: "Background",
+      icon: <Briefcase className="size-4" aria-hidden />,
       rows: [
-        ["Education", application.education],
-        ["Occupation", application.occupation],
-        ["Employer", application.employer],
-        ["Emergency contact", application.emergency_contact],
-        ["Notes", application.additional_notes],
+        { label: "Education", value: application.education },
+        { label: "Occupation", value: application.occupation },
+        { label: "Employer", value: application.employer },
+        { label: "Emergency contact", value: application.emergency_contact },
+        { label: "Notes", value: application.additional_notes, wide: true },
       ],
     },
   ];
 
   return (
-    <div className="grid gap-6 p-5 sm:grid-cols-2">
-      {groups.map((group) => (
-        <section key={group.title}>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-            {group.title}
-          </h3>
-          <dl className="mt-2.5 space-y-1.5">
-            {group.rows.map(([label, value]) => (
-              <div key={label} className="flex gap-3 text-sm">
-                <dt className="w-36 shrink-0 text-ink-500">{label}</dt>
-                <dd className="min-w-0 flex-1 break-words text-ink-800">
-                  {value || <span className="text-ink-300">—</span>}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
+    <div className="p-5">
+      {/* Balanced columns: the five groups have very different heights, and a
+          grid would leave a short one stranded beside a tall one. */}
+      <div className="gap-5 lg:columns-2">
+        {groups.map((group) => {
+          const filled = group.rows.filter((row) => row.value).length;
+
+          return (
+            <section
+              key={group.title}
+              className="mb-5 break-inside-avoid overflow-hidden rounded-xl border border-ink-200 bg-white"
+            >
+              <header className="flex items-center gap-2.5 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5">
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                  {group.icon}
+                </span>
+                <h3 className="text-sm font-semibold text-ink-900">{group.title}</h3>
+                {/* Tells a reviewer at a glance whether a section is worth
+                    opening, without counting dashes. */}
+                <span className="ml-auto tabular text-xs text-ink-400">
+                  {filled}/{group.rows.length}
+                </span>
+              </header>
+
+              <dl className="divide-y divide-ink-100">
+                {group.rows.map((row) => (
+                  <div
+                    key={row.label}
+                    className={cn(
+                      "px-4 py-2.5",
+                      row.wide
+                        ? "space-y-1"
+                        : "flex items-baseline gap-4",
+                    )}
+                  >
+                    <dt
+                      className={cn(
+                        "shrink-0 text-xs font-medium text-ink-500",
+                        !row.wide && "w-32",
+                      )}
+                    >
+                      {row.label}
+                    </dt>
+                    <dd
+                      className={cn(
+                        "min-w-0 flex-1 break-words text-sm",
+                        row.alert ? "font-medium text-danger" : "text-ink-800",
+                        row.wide && "whitespace-pre-line leading-relaxed",
+                      )}
+                    >
+                      {row.value || <span className="text-ink-300">Not provided</span>}
+                      {row.alert && (
+                        <span className="ml-2 align-middle text-xs font-normal">
+                          expired
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

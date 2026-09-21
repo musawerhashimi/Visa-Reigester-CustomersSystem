@@ -94,6 +94,78 @@ class ReportTests(TestCase):
         client.force_authenticate(user=user)
         return client
 
+    # --- email traffic ----------------------------------------------------
+
+    def _email(self, application, *, status, automatic=True):
+        from emails.models import EmailLog
+
+        return EmailLog.objects.create(
+            to_email="ahmad@report.test",
+            subject="Update",
+            body="…",
+            application=application,
+            status=status,
+            is_automatic=automatic,
+        )
+
+    def test_email_report_counts_both_directions(self):
+        from cms.models import ContactMessage
+        from emails.models import EmailLog
+
+        self._email(self.processing, status=EmailLog.Status.SENT)
+        self._email(self.processing, status=EmailLog.Status.FAILED)
+        ContactMessage.objects.create(
+            name="Ahmad", email="ahmad@report.test", message="Where is my visa?"
+        )
+
+        report = services.build("emails")
+
+        self.assertEqual(report["summary"]["Total sent to customers"], 2)
+        self.assertEqual(report["summary"]["Delivered"], 1)
+        self.assertEqual(report["summary"]["Failed"], 1)
+        self.assertEqual(report["summary"]["Total received from customers"], 1)
+
+    def test_a_branch_sees_only_its_own_sent_email(self):
+        """The general branch totals the company; a branch totals itself."""
+        from branches.models import Branch
+        from emails.models import EmailLog
+
+        other = Branch.objects.create(name="Kabul", code="KBL", is_general=False)
+        theirs = Application.objects.create(
+            customer=self.profile,
+            visa_type=self.student,
+            first_name="Other",
+            last_name="Branch",
+            status=ApplicationStatus.PROCESSING,
+            branch=other,
+        )
+        self._email(self.processing, status=EmailLog.Status.SENT)
+        self._email(theirs, status=EmailLog.Status.SENT)
+
+        company = services.build("emails")
+        branch = services.build("emails", branch=other.id)
+
+        self.assertEqual(company["summary"]["Total sent to customers"], 2)
+        self.assertEqual(branch["summary"]["Total sent to customers"], 1)
+
+    def test_contact_messages_are_not_double_counted_per_branch(self):
+        """The public form names no office, so only the company report has it."""
+        from branches.models import Branch
+        from cms.models import ContactMessage
+
+        ContactMessage.objects.create(
+            name="Ahmad", email="ahmad@report.test", message="Hello"
+        )
+        other = Branch.objects.create(name="Herat", code="HRT", is_general=False)
+
+        company = services.build("emails")
+        branch = services.build("emails", branch=other.id)
+
+        self.assertEqual(company["summary"]["Total received from customers"], 1)
+        self.assertEqual(branch["summary"]["Total received from customers"], 0)
+        # A branch is told why, rather than reading 0 as "nobody wrote in".
+        self.assertIn("Received from customers", branch["summary"])
+
     # --- aggregation ------------------------------------------------------
 
     def test_applications_report_counts_by_status(self):

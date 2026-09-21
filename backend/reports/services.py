@@ -12,7 +12,9 @@ from django.db.models.functions import TruncDay, TruncMonth, TruncWeek, TruncYea
 from django.utils import timezone
 
 from applications.models import Application, ApplicationStatus
+from cms.models import ContactMessage
 from customers.models import CustomerProfile
+from emails.models import EmailLog
 from payments.models import Payment
 
 TRUNCATORS = {
@@ -372,6 +374,83 @@ def applications_over_time(
     }
 
 
+def emails_report(*, date_from=None, date_to=None, branch=None, **_):
+    """Email traffic both ways: what we sent, and what customers sent us.
+
+    Outbound is scoped through the application, which is where every email
+    inherits its branch from. Inbound is the public contact form, which has
+    no branch at all — nobody picks an office to write to — so it is counted
+    only for the general branch and reported as such rather than silently
+    dropped or duplicated into every office's figures.
+    """
+    start, end = parse_range(date_from, date_to)
+
+    sent = _within(
+        _for_branch(EmailLog.objects.all(), branch, field="application__branch"),
+        "created_at",
+        start,
+        end,
+    )
+
+    statuses = dict(EmailLog.Status.choices)
+    by_status = {
+        bucket["status"]: bucket["total"]
+        for bucket in sent.values("status").annotate(total=Count("id"))
+    }
+    total_sent = sum(by_status.values())
+
+    rows = [
+        {
+            "direction": "Sent to customers",
+            "channel": f"Email · {statuses.get(status, status)}",
+            "total": by_status.get(status, 0),
+        }
+        for status in (EmailLog.Status.SENT, EmailLog.Status.QUEUED, EmailLog.Status.FAILED)
+    ]
+
+    # A branch report would otherwise show the whole company's contact form.
+    inbound_counted = branch is None
+    received = (
+        _within(ContactMessage.objects.all(), "created_at", start, end)
+        if inbound_counted
+        else ContactMessage.objects.none()
+    )
+    total_received = received.count()
+    replied = received.filter(status=ContactMessage.Status.REPLIED).count()
+
+    rows.append(
+        {
+            "direction": "Received from customers",
+            "channel": "Contact form",
+            "total": total_received,
+        }
+    )
+
+    summary = {
+        "Total sent to customers": total_sent,
+        "Delivered": by_status.get(EmailLog.Status.SENT, 0),
+        "Failed": by_status.get(EmailLog.Status.FAILED, 0),
+        "Total received from customers": total_received,
+        "Replied to": replied,
+        "Automatic": sent.filter(is_automatic=True).count(),
+        "Sent by staff": sent.filter(is_automatic=False).count(),
+    }
+    if not inbound_counted:
+        # Said plainly, so a branch does not read 0 as "nobody wrote in".
+        summary["Received from customers"] = "Company-wide only"
+
+    return {
+        "title": "Email traffic",
+        "columns": [
+            {"key": "direction", "label": "Direction"},
+            {"key": "channel", "label": "Channel"},
+            {"key": "total", "label": "Messages", "numeric": True},
+        ],
+        "rows": rows,
+        "summary": summary,
+    }
+
+
 def _money(value):
     """Always two decimal places: a currency total of "750" reads as wrong."""
     from decimal import Decimal
@@ -392,6 +471,7 @@ REPORTS = {
     "customers": customers_report,
     "financial": financial_report,
     "over-time": applications_over_time,
+    "emails": emails_report,
 }
 
 

@@ -99,12 +99,6 @@ export interface TestimonialItem extends PublicContent {
   rating: number;
 }
 
-export interface FAQItem extends PublicContent {
-  question: Translated;
-  answer: Translated;
-  category: string;
-}
-
 export interface CompanyInfo {
   name: Translated;
   description: Translated;

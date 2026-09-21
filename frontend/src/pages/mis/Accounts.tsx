@@ -27,7 +27,6 @@ interface Account {
   denied_permissions: string[];
   effective_permissions: string[];
   role_defaults: string[];
-  assigned_count: number;
   last_login_at: string | null;
   created_at: string;
 }
@@ -232,7 +231,7 @@ export default function Accounts() {
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">Name</th>
                 <th scope="col" className="px-4 py-3 font-medium">Role</th>
-                <th scope="col" className="px-4 py-3 font-medium">Assigned</th>
+                <th scope="col" className="px-4 py-3 font-medium">Branch</th>
                 <th scope="col" className="px-4 py-3 font-medium">Status</th>
                 <th scope="col" className="px-4 py-3 font-medium">Last signed in</th>
                 {canEdit && <th scope="col" className="px-4 py-3 font-medium">Actions</th>}
@@ -294,8 +293,22 @@ export default function Accounts() {
                       )}
                     </td>
 
-                    <td className="tabular px-4 py-3 text-ink-700">
-                      {account.role === "customer" ? "—" : account.assigned_count}
+                    <td className="px-4 py-3">
+                      {account.branch ? (
+                        <span className="text-ink-700">
+                          {account.branch.name}
+                          {/* The general branch sees every office's work, so
+                              it is worth calling out rather than reading as
+                              just another branch name. */}
+                          {account.branch.is_general && (
+                            <span className="ml-1.5 text-xs text-ink-400">
+                              (all branches)
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-ink-300">—</span>
+                      )}
                     </td>
 
                     <td className="px-4 py-3">

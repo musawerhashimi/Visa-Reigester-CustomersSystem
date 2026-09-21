@@ -160,6 +160,9 @@ export function CustomerDownloads({ applicationId }: { applicationId: number }) 
                 <p className="mt-1 text-xs text-ink-600">
                   {t("portal.payInto")}{" "}
                   <span className="tabular font-medium">{payment.card_number}</span>
+                  {payment.card_owner_name && (
+                    <span className="font-medium"> · {payment.card_owner_name}</span>
+                  )}
                 </p>
               )}
             </div>

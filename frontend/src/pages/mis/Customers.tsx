@@ -20,6 +20,8 @@ interface Customer {
   country: string;
   status: "active" | "inactive" | "archived";
   application_count: number;
+  /** The offices handling this customer, via the applications they made. */
+  branches: { id: number; name: string; code: string }[];
   created_at: string;
 }
 
@@ -117,6 +119,7 @@ export default function Customers() {
                 <th scope="col" className="px-4 py-3 font-medium">Customer</th>
                 <th scope="col" className="px-4 py-3 font-medium">Contact</th>
                 <th scope="col" className="px-4 py-3 font-medium">Country</th>
+                <th scope="col" className="px-4 py-3 font-medium">Branch</th>
                 <th scope="col" className="px-4 py-3 font-medium">Applications</th>
                 <th scope="col" className="px-4 py-3 font-medium">Status</th>
                 <th scope="col" className="px-4 py-3 font-medium">Registered</th>
@@ -127,7 +130,7 @@ export default function Customers() {
             <tbody className="divide-y divide-ink-100">
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-ink-500">
+                  <td colSpan={8} className="px-4 py-12 text-center text-ink-500">
                     Loading…
                   </td>
                 </tr>
@@ -135,7 +138,7 @@ export default function Customers() {
 
               {isError && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-danger">
+                  <td colSpan={8} className="px-4 py-12 text-center text-danger">
                     Could not load customers.
                   </td>
                 </tr>
@@ -143,7 +146,7 @@ export default function Customers() {
 
               {!isLoading && !isError && rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center">
+                  <td colSpan={8} className="px-4 py-16 text-center">
                     <span className="mx-auto grid size-11 place-items-center rounded-xl bg-ink-100 text-ink-400">
                       <Users className="size-5" aria-hidden />
                     </span>
@@ -181,6 +184,21 @@ export default function Customers() {
 
                   <td className="px-4 py-3 text-ink-600">
                     {customer.country || <span className="text-ink-300">—</span>}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    {/* A customer reaches a branch by applying there, and may
+                        have applied at more than one, so every office that
+                        handles them is listed. */}
+                    {customer.branches.length > 0 ? (
+                      <span className="text-ink-700">
+                        {customer.branches.map((branch) => branch.name).join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-ink-300" title="No applications yet">
+                        —
+                      </span>
+                    )}
                   </td>
 
                   <td className="tabular px-4 py-3 text-ink-700">

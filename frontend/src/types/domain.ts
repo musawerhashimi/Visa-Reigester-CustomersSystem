@@ -333,6 +333,7 @@ export interface Payment {
   kind_label: string;
   /** The account the customer pays into, printed on their bill. */
   card_number: string;
+  card_owner_name: string;
   paid_at: string;
   reference: string;
   note: string;

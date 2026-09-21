@@ -201,20 +201,6 @@ export const CONTENT_TYPES: ContentTypeConfig[] = [
     ],
   },
   {
-    key: "faqs",
-    endpoint: "faqs",
-    label: "FAQs",
-    singular: "Question",
-    lookup: "id",
-    titleField: "question",
-    permission: "cms.pages.manage",
-    fields: [
-      { name: "question", label: "Question", kind: "text", translated: true, required: true },
-      { name: "answer", label: "Answer", kind: "textarea", translated: true, required: true, rows: 5 },
-      { name: "category", label: "Category", kind: "plain" },
-    ],
-  },
-  {
     key: "testimonials",
     endpoint: "testimonials",
     label: "Testimonials",

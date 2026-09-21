@@ -22,6 +22,11 @@ class VisaCatalogueTests(TestCase):
             country_id=VisaType.objects.first().country_id,
             status=VisaType.Status.DRAFT,
         )
+        cls.manager = User.objects.create_user(
+            email="manager@visas.test",
+            password="StrongPass2026!",
+            role=User.Role.ADMIN,
+        )
         cls.cms_manager = User.objects.create_user(
             email="cms@visas.test",
             password="StrongPass2026!",
@@ -48,14 +53,24 @@ class VisaCatalogueTests(TestCase):
         detail = APIClient().get("/api/visa-types/draft-visa/")
         self.assertEqual(detail.status_code, 404)
 
-    def test_cms_manager_sees_drafts(self):
+    def test_catalogue_manager_sees_drafts(self):
+        client = APIClient()
+        client.force_authenticate(user=self.manager)
+
+        response = client.get("/api/visa-types/")
+
+        slugs = {row["slug"] for row in response.data["results"]}
+        self.assertIn("draft-visa", slugs)
+
+    def test_cms_manager_does_not_see_drafts(self):
+        """The visa catalogue is the product list, not website copy."""
         client = APIClient()
         client.force_authenticate(user=self.cms_manager)
 
         response = client.get("/api/visa-types/")
 
         slugs = {row["slug"] for row in response.data["results"]}
-        self.assertIn("draft-visa", slugs)
+        self.assertNotIn("draft-visa", slugs)
 
     def test_customer_does_not_see_drafts(self):
         client = APIClient()
@@ -105,10 +120,12 @@ class VisaCatalogueManagementTests(TestCase):
         call_command("seed_demo", verbosity=0)
 
         cls.country_id = VisaType.objects.first().country_id
-        cls.cms_manager = User.objects.create_user(
+        # The catalogue is the business's product list, so an admin keeps it;
+        # a CMS manager edits website copy and cannot reach it.
+        cls.manager = User.objects.create_user(
             email="catalogue@visas.test",
             password="StrongPass2026!",
-            role=User.Role.CMS_MANAGER,
+            role=User.Role.ADMIN,
         )
         cls.customer = User.objects.create_user(
             email="applicant@visas.test", password="StrongPass2026!"
@@ -116,7 +133,7 @@ class VisaCatalogueManagementTests(TestCase):
 
     def _manager(self):
         client = APIClient()
-        client.force_authenticate(user=self.cms_manager)
+        client.force_authenticate(user=self.manager)
         return client
 
     def test_manager_creates_a_visa_type_the_form_then_offers(self):

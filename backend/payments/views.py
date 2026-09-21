@@ -86,6 +86,7 @@ class PaymentViewSet(
                 amount=data["amount"],
                 currency=data["currency"],
                 card_number=data["card_number"],
+                card_owner_name=data["card_owner_name"],
                 note=data["note"],
                 actor=request.user,
                 request=request,

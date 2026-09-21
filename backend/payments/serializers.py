@@ -54,6 +54,7 @@ class PaymentSerializer(serializers.ModelSerializer):
             "kind",
             "kind_label",
             "card_number",
+            "card_owner_name",
             "paid_at",
             "reference",
             "note",
@@ -98,6 +99,9 @@ class BillFeeSerializer(serializers.Serializer):
     )
     currency = serializers.CharField(max_length=3, default="EUR")
     card_number = serializers.CharField(max_length=64)
+    card_owner_name = serializers.CharField(
+        max_length=120, required=False, allow_blank=True, default=""
+    )
     note = serializers.CharField(required=False, allow_blank=True, default="")
 
 

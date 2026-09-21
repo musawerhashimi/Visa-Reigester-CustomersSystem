@@ -245,6 +245,8 @@ def render_receipt(receipt):
     if is_bill:
         # A bill is useless without somewhere to send the money.
         rows.append(("Pay into", payment.card_number or "—"))
+        if payment.card_owner_name:
+            rows.append(("Account name", payment.card_owner_name))
         rows.append(("Issued", receipt.created_at.strftime("%d %B %Y")))
     else:
         rows.append(("Payment method", payment.get_method_display()))

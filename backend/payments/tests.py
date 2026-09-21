@@ -617,6 +617,16 @@ class FeeBillingTests(TestCase):
         payment = Payment.objects.get()
         self.assertIn("TR33", payment.card_number)
 
+    def test_the_card_owner_name_is_recorded_when_staff_give_one(self):
+        self.assertEqual(self.bill(card_owner_name="Sara Ahmadi").status_code, 201)
+        self.assertEqual(Payment.objects.get().card_owner_name, "Sara Ahmadi")
+
+    def test_the_card_owner_name_is_optional(self):
+        # Staff often know only the account number, so the bill must go
+        # out without it.
+        self.assertEqual(self.bill().status_code, 201)
+        self.assertEqual(Payment.objects.get().card_owner_name, "")
+
     def test_the_customer_is_notified_in_the_portal(self):
         self.bill()
         alert = Notification.objects.filter(

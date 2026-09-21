@@ -5,6 +5,7 @@ import {
   FolderOpen,
   LayoutDashboard,
   Globe,
+  Inbox,
   ShieldCheck,
   LogOut,
   Mail,
@@ -25,13 +26,17 @@ import { NotificationBell } from "./NotificationBell";
 
 /** Sidebar entries, each gated on the permission that makes it useful. */
 const NAV = [
-  { to: "/mis", label: "Dashboard", icon: LayoutDashboard, end: true },
+  // The dashboard is entirely application figures, so it is gated on the
+  // same permission as the queue it summarises: a CMS manager would only
+  // ever see it empty.
+  { to: "/mis", label: "Dashboard", icon: LayoutDashboard, end: true, permission: "applications.view_assigned" },
   // A CMS manager administers the public site and has no business in the
   // application queue (section 42); either view permission qualifies.
   { to: "/mis/applications", label: "Applications", icon: FileText, permission: "applications.view_assigned" },
   { to: "/mis/customers", label: "Customers", icon: Users, permission: "customers.view" },
   { to: "/mis/documents", label: "Documents", icon: FolderOpen, permission: "documents.view" },
   { to: "/mis/emails", label: "Emails", icon: Mail, permission: "emails.send" },
+  { to: "/mis/contact", label: "Contact messages", icon: Inbox, permission: "cms.contact.manage" },
   { to: "/mis/reports", label: "Reports", icon: BarChart3, permission: "reports.view" },
   { to: "/mis/visas", label: "Visa types", icon: Plane, permission: "visas.manage" },
   { to: "/mis/cms", label: "Website", icon: Globe, permission: "cms.pages.manage" },

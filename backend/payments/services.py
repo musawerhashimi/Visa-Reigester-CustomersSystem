@@ -38,6 +38,7 @@ def record_payment(
     note="",
     kind=Payment.Kind.OTHER,
     card_number="",
+    card_owner_name="",
     actor=None,
     request=None,
     issue_receipt=True,
@@ -58,6 +59,7 @@ def record_payment(
         note=note,
         kind=kind,
         card_number=card_number,
+        card_owner_name=card_owner_name,
         recorded_by=actor,
     )
 
@@ -197,6 +199,10 @@ def _email_receipt(receipt, *, actor=None):
     if receipt.is_bill and payment.card_number:
         body += [
             f"Please pay into: {payment.card_number}",
+        ]
+        if payment.card_owner_name:
+            body.append(f"Account name: {payment.card_owner_name}")
+        body += [
             "",
             "Once you have paid, upload your payment slip here so we can "
             "confirm it:",
@@ -232,6 +238,7 @@ def bill_fee(
     amount,
     currency="EUR",
     card_number="",
+    card_owner_name="",
     note="",
     actor=None,
     request=None,
@@ -259,6 +266,7 @@ def bill_fee(
         status=Payment.Status.UNPAID,
         kind=kind,
         card_number=card_number,
+        card_owner_name=card_owner_name,
         note=note,
         recorded_by=actor,
     )

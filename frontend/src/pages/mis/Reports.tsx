@@ -28,6 +28,7 @@ const REPORTS = [
   { key: "customers", label: "Customers" },
   { key: "financial", label: "Financial" },
   { key: "over-time", label: "Over time" },
+  { key: "emails", label: "Email traffic" },
 ] as const;
 
 const FORMATS = [

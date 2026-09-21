@@ -32,6 +32,7 @@ class ReportViewSet(viewsets.ViewSet):
                     {"key": "customers", "label": "Customers"},
                     {"key": "financial", "label": "Financial"},
                     {"key": "over-time", "label": "Applications over time"},
+                    {"key": "emails", "label": "Email traffic"},
                 ],
                 "formats": list(EXPORTERS),
                 "can_export": request.user.has_perm_slug(perms.REPORTS_EXPORT),

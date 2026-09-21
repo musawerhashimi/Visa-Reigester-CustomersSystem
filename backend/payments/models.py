@@ -62,6 +62,14 @@ class Payment(TimeStampedModel):
         verbose_name="Account / card number to pay into",
     )
 
+    # Who the account is in the name of. Optional: staff often know only the
+    # number, and a bill is still payable without it.
+    card_owner_name = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name="Card owner name",
+    )
+
     paid_at = models.DateTimeField(default=timezone.now, db_index=True)
     reference = models.CharField(max_length=100, blank=True)
     note = models.TextField(blank=True)

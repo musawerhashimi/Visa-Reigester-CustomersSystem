@@ -226,6 +226,32 @@ class AccountAdministrationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("reports.view", response.data["effective_permissions"])
 
+    def test_a_cms_manager_runs_the_website_and_nothing_else(self):
+        """The public site is theirs; the business's data and product list are not."""
+        cms = User.objects.create_user(
+            email="cms@accounts.test",
+            password="StrongPass2026!",
+            role=User.Role.CMS_MANAGER,
+        )
+
+        self.assertTrue(cms.has_perm_slug("cms.pages.manage"))
+        # The visa catalogue is the product list, not website copy.
+        self.assertFalse(cms.has_perm_slug("visas.manage"))
+        # And the dashboard they land on is built entirely from these.
+        self.assertFalse(cms.has_perm_slug("applications.view"))
+        self.assertFalse(cms.has_perm_slug("applications.view_assigned"))
+
+    def test_an_admin_can_still_grant_the_catalogue_to_a_cms_manager(self):
+        """Removing it from the role must not remove the ability to delegate."""
+        cms = User.objects.create_user(
+            email="cms-extra@accounts.test",
+            password="StrongPass2026!",
+            role=User.Role.CMS_MANAGER,
+            extra_permissions=["visas.manage"],
+        )
+
+        self.assertTrue(cms.has_perm_slug("visas.manage"))
+
     def test_extra_permission_widens_access_without_changing_role(self):
         response = self.client_for(self.super_admin).patch(
             f"/api/accounts/{self.officer.pk}/",

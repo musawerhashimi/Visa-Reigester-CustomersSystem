@@ -241,6 +241,56 @@ class DetailSerializerTests(TestCase):
         client.force_authenticate(user=user)
         return client
 
+    def test_the_directory_names_the_branch_a_customer_applied_at(self):
+        """Staff need to see which office handles each customer."""
+        from branches.models import Branch
+
+        admin = User.objects.create_user(
+            email="branchadmin@detail.test",
+            password="StrongPass2026!",
+            role=User.Role.SUPER_ADMIN,
+            branch=Branch.general(),
+        )
+        kabul = Branch.objects.create(name="Kabul", code="KBL", is_general=False)
+        self.application.branch = kabul
+        self.application.save(update_fields=["branch"])
+
+        response = self.client_for(admin).get("/api/customers/")
+
+        row = next(
+            item
+            for item in response.data["results"]
+            if item["customer_code"] == self.profile.customer_code
+        )
+        self.assertEqual(
+            row["branches"], [{"id": kabul.pk, "name": "Kabul", "code": "KBL"}]
+        )
+
+    def test_a_customer_with_no_application_belongs_to_no_branch(self):
+        """A customer reaches a branch only by applying there."""
+        from branches.models import Branch
+
+        admin = User.objects.create_user(
+            email="emptyadmin@detail.test",
+            password="StrongPass2026!",
+            role=User.Role.SUPER_ADMIN,
+            branch=Branch.general(),
+        )
+        stranger = CustomerProfile.objects.create(
+            user=User.objects.create_user(
+                email="stranger@detail.test", password="StrongPass2026!"
+            )
+        )
+
+        response = self.client_for(admin).get("/api/customers/")
+
+        row = next(
+            item
+            for item in response.data["results"]
+            if item["customer_code"] == stranger.customer_code
+        )
+        self.assertEqual(row["branches"], [])
+
     def test_staff_see_customer_details_and_transitions(self):
         response = self.client_for(self.officer).get(
             f"/api/applications/{self.application.pk}/"

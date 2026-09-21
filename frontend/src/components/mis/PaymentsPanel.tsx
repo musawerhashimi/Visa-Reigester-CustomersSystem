@@ -20,6 +20,15 @@ import type {
 /** The two fees, each billed once per application. */
 type FeeKind = "registration" | "visa_fee";
 
+/** What staff fill in on either fee's bill form. */
+type BillFormValues = {
+  amount: string;
+  currency: string;
+  card_number: string;
+  card_owner_name: string;
+  note: string;
+};
+
 const FEES: { kind: FeeKind; label: string; action: string; hint: string }[] = [
   {
     kind: "registration",
@@ -52,6 +61,7 @@ export function PaymentsPanel({
     amount: "",
     currency: "EUR",
     card_number: "",
+    card_owner_name: "",
     note: "",
   });
 
@@ -120,12 +130,19 @@ export function PaymentsPanel({
         amount: billForm.amount,
         currency: billForm.currency,
         card_number: billForm.card_number,
+        card_owner_name: billForm.card_owner_name,
         note: billForm.note,
       }),
     onSuccess: () => {
       setError(null);
       setBilling(null);
-      setBillForm({ amount: "", currency: "EUR", card_number: "", note: "" });
+      setBillForm({
+        amount: "",
+        currency: "EUR",
+        card_number: "",
+        card_owner_name: "",
+        note: "",
+      });
       refresh();
     },
     onError: (err) => setError(apiErrorMessage(err, "Could not create the bill.")),
@@ -274,6 +291,7 @@ export function PaymentsPanel({
                 {payment.card_number && payment.status !== "paid" && (
                   <p className="mt-0.5 text-xs text-ink-400">
                     Pay into: {payment.card_number}
+                    {payment.card_owner_name && ` · ${payment.card_owner_name}`}
                   </p>
                 )}
               </div>
@@ -478,13 +496,8 @@ function BillForm({
   onCancel,
 }: {
   kind: FeeKind;
-  form: { amount: string; currency: string; card_number: string; note: string };
-  setForm: (update: (previous: {
-    amount: string;
-    currency: string;
-    card_number: string;
-    note: string;
-  }) => { amount: string; currency: string; card_number: string; note: string }) => void;
+  form: BillFormValues;
+  setForm: (update: (previous: BillFormValues) => BillFormValues) => void;
   pending: boolean;
   documentsReceived: boolean;
   onSubmit: () => void;
@@ -542,6 +555,15 @@ function BillForm({
         value={form.card_number}
         onChange={(event) =>
           setForm((f) => ({ ...f, card_number: event.target.value }))
+        }
+      />
+
+      <Field
+        label="Card owner name"
+        hint="Optional. The name the account is held in."
+        value={form.card_owner_name}
+        onChange={(event) =>
+          setForm((f) => ({ ...f, card_owner_name: event.target.value }))
         }
       />
 

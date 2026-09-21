@@ -31,6 +31,7 @@ const MISReports = lazy(() => import("@/pages/mis/Reports"));
 const MISCustomers = lazy(() => import("@/pages/mis/Customers"));
 const MISDocuments = lazy(() => import("@/pages/mis/Documents"));
 const MISEmails = lazy(() => import("@/pages/mis/Emails"));
+const MISContact = lazy(() => import("@/pages/mis/Contact"));
 const MISSettings = lazy(() => import("@/pages/mis/Settings"));
 const MISAccounts = lazy(() => import("@/pages/mis/Accounts"));
 const MISBranches = lazy(() => import("@/pages/mis/Branches"));
@@ -89,6 +90,24 @@ function PageFallback() {
   );
 }
 
+/**
+ * The MIS landing page.
+ *
+ * The dashboard is entirely application figures, so somebody who cannot see
+ * applications — a CMS manager — is sent to the section they do run rather
+ * than to a page that would load empty for them.
+ */
+function MISHome() {
+  const hasPermission = useAuth((state) => state.hasPermission);
+  const seesApplications =
+    hasPermission("applications.view_assigned") || hasPermission("applications.view");
+
+  if (!seesApplications) {
+    return <Navigate to="/mis/cms" replace />;
+  }
+  return <MISDashboard />;
+}
+
 export default function App() {
   const loadSession = useAuth((state) => state.loadSession);
 
@@ -129,12 +148,13 @@ export default function App() {
                 </RequireAuth>
               }
             >
-              <Route index element={<MISDashboard />} />
+              <Route index element={<MISHome />} />
               <Route path="applications" element={<MISApplications />} />
               <Route path="applications/:id" element={<MISApplicationDetail />} />
               <Route path="customers" element={<MISCustomers />} />
               <Route path="documents" element={<MISDocuments />} />
               <Route path="emails" element={<MISEmails />} />
+              <Route path="contact" element={<MISContact />} />
               <Route path="reports" element={<MISReports />} />
               <Route path="accounts" element={<MISAccounts />} />
               <Route path="branches" element={<MISBranches />} />

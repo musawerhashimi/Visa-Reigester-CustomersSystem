@@ -36,7 +36,13 @@ class CustomerViewSet(
         if not user.has_perm_slug(perms.CUSTOMERS_VIEW):
             return CustomerProfile.objects.none()
 
-        queryset = CustomerProfile.objects.alive().select_related("user")
+        # The branch column reads each customer's applications, so they are
+        # fetched once here rather than per row.
+        queryset = (
+            CustomerProfile.objects.alive()
+            .select_related("user")
+            .prefetch_related("applications__branch")
+        )
 
         # Customer accounts are global, so a branch sees the people it is
         # actually handling work for: anyone with an application here. The

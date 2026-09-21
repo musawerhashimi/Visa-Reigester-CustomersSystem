@@ -96,7 +96,9 @@ _ROLE_PERMISSIONS = {
             BRANCHES_VIEW,
         }
     ),
-    "cms_manager": _CMS_PERMISSIONS | {VISAS_MANAGE},
+    # The visa catalogue is the business's product list, not website copy,
+    # so it stays with the people who run the business.
+    "cms_manager": _CMS_PERMISSIONS,
     "customer": frozenset(),
 }
 
