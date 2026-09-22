@@ -219,6 +219,36 @@ class VisaCatalogueManagementTests(TestCase):
         # keeps pointing at the visa they applied for.
         self.assertEqual(response.status_code, 400)
         self.assertTrue(VisaType.objects.filter(pk=visa.pk).exists())
+        # The refusal names what is in the way, and — while the type is still
+        # published — what to do instead.
+        self.assertIn("1 application", response.data["detail"])
+        self.assertIn("Set it to draft", response.data["detail"])
+
+    def test_a_drafted_visa_type_is_not_told_to_draft_itself(self):
+        """The refusal must not prescribe a step already taken.
+
+        Drafting is what retires a visa type that applications still
+        reference. Repeating that advice to someone who has just drafted it
+        reads as though the refusal were their mistake, and hides that there
+        is nothing further they can do.
+        """
+        from applications.models import Application
+
+        from customers.models import CustomerProfile
+
+        visa = VisaType.objects.get(slug="germany-student-visa")
+        Application.objects.create(
+            customer=CustomerProfile.objects.create(user=self.customer),
+            visa_type=visa,
+        )
+        visa.status = VisaType.Status.DRAFT
+        visa.save(update_fields=["status"])
+
+        response = self._manager().delete(f"/api/visa-types/{visa.slug}/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("Set it to draft", response.data["detail"])
+        self.assertIn("already a draft", response.data["detail"])
 
     def test_manager_builds_the_document_checklist_of_a_new_visa_type(self):
         from documents.models import DocumentType

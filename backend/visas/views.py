@@ -51,21 +51,59 @@ class VisaCatalogViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         self._require_manage()
+        # Django clears the pk on delete, so what the audit trail needs to
+        # identify the record has to be read while the row still exists.
+        record_id, record_label = instance.pk, str(instance)[:200]
         try:
             instance.delete()
-        except ProtectedError:
+        except ProtectedError as exc:
             # Applications reference their visa type for the life of the
             # record, so the catalogue entry cannot vanish underneath them.
-            # Unpublishing is the way to retire one.
-            raise ValidationError(
-                {
-                    "detail": (
-                        "This is still in use and cannot be deleted. "
-                        "Set it to draft to stop offering it."
-                    )
-                }
+            # Drafting is what retires one — but say so only when it is still
+            # published, since telling someone to draft what they have already
+            # drafted reads as though the refusal were their mistake.
+            raise ValidationError({"detail": self._in_use_message(instance, exc)})
+        audit.record(
+            action="delete",
+            module=f"visas.{instance._meta.model_name}",
+            actor=self.request.user,
+            record_id=record_id,
+            record_label=record_label,
+            request=self.request,
+        )
+
+    def _in_use_message(self, instance, exc):
+        """Why this record is pinned, and what the caller can still do.
+
+        `ProtectedError.protected_objects` holds the rows standing in the
+        way, so the refusal can name them and their number rather than
+        leaving staff to guess what "in use" means.
+        """
+        protected = list(exc.protected_objects)
+        if protected:
+            meta = protected[0]._meta
+            noun = meta.verbose_name if len(protected) == 1 else meta.verbose_name_plural
+            count = f"{len(protected)} {noun}"
+        else:
+            count = "other records"
+
+        already_retired = getattr(instance, "status", None) in {
+            "draft",
+            "archived",
+        }
+        count = count[0].upper() + count[1:]
+        if already_retired:
+            # Already off the application form; there is nothing further to
+            # do, so the message stops rather than offering a dead end.
+            return (
+                f"{count} still reference this, so it cannot be deleted. "
+                "It is already a draft, so it is not offered to new "
+                "applicants — it stays here for their history."
             )
-        self._audit(instance, "delete")
+        return (
+            f"{count} still reference this, so it cannot be deleted. "
+            "Set it to draft to stop offering it to new applicants."
+        )
 
     def _audit(self, instance, action_name):
         audit.record(

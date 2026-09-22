@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff, Plane, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import { api, apiErrorMessage } from "@/lib/api";
 import { translate } from "@/lib/i18n";
 import { useAuth } from "@/stores/auth";
@@ -11,7 +14,11 @@ import type { Paginated, VisaType } from "@/types/domain";
 
 export default function VisaTypeList() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const canManage = useAuth((state) => state.hasPermission)("visas.manage");
+  // The row awaiting confirmation. Held here rather than on the row so the
+  // dialog survives the list re-rendering underneath it.
+  const [pendingDelete, setPendingDelete] = useState<VisaType | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["visa-catalogue", "visa-types"],
@@ -23,8 +30,16 @@ export default function VisaTypeList() {
     },
   });
 
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["visa-catalogue"] });
+  // The applicant's form reads the same endpoint under its own key, so
+  // drafting a type has to drop that cache too — otherwise it stays on offer
+  // there until the entry goes stale.
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["visa-catalogue"] }),
+      queryClient.invalidateQueries({ queryKey: ["visa-types"] }),
+      queryClient.invalidateQueries({ queryKey: ["public", "visa-types"] }),
+    ]);
+  };
 
   // No publish/unpublish action on this endpoint — the status field is the
   // whole switch, so a PATCH says it directly.
@@ -33,12 +48,27 @@ export default function VisaTypeList() {
       api.patch(`/visa-types/${visa.slug}/`, {
         status: publish ? "published" : "draft",
       }),
-    onSuccess: refresh,
+    onSuccess: async (_data, { visa, publish }) => {
+      await refresh();
+      toast(
+        publish
+          ? `"${translate(visa.name)}" is now on the application form.`
+          : `"${translate(visa.name)}" is a draft and no longer offered.`,
+      );
+    },
+    onError: (err) =>
+      toast(apiErrorMessage(err, "Could not change this visa type."), "error"),
   });
 
   const remove = useMutation({
     mutationFn: (visa: VisaType) => api.delete(`/visa-types/${visa.slug}/`),
-    onSuccess: refresh,
+    onSuccess: async (_data, visa) => {
+      await refresh();
+      setPendingDelete(null);
+      toast(`"${translate(visa.name)}" was deleted.`);
+    },
+    // The dialog stays open and shows why — a type with applications behind
+    // it is refused, and that reason is the useful part.
   });
 
   const rows = data ?? [];
@@ -66,15 +96,6 @@ export default function VisaTypeList() {
           </Link>
         )}
       </header>
-
-      {(togglePublish.isError || remove.isError) && (
-        <p role="alert" className="rounded-lg bg-danger-soft px-3.5 py-3 text-sm text-danger">
-          {apiErrorMessage(
-            togglePublish.error ?? remove.error,
-            "Could not update this visa type.",
-          )}
-        </p>
-      )}
 
       <div className="card overflow-hidden">
         {isLoading && (
@@ -173,13 +194,8 @@ export default function VisaTypeList() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (
-                          window.confirm(
-                            `Delete "${translate(visa.name)}"? This cannot be undone.`,
-                          )
-                        ) {
-                          remove.mutate(visa);
-                        }
+                        remove.reset();
+                        setPendingDelete(visa);
                       }}
                       aria-label="Delete"
                       title="Delete"
@@ -194,6 +210,41 @@ export default function VisaTypeList() {
           })}
         </ul>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this visa type?"
+        description={
+          pendingDelete && (
+            <>
+              <strong className="font-medium text-ink-700">
+                {translate(pendingDelete.name)}
+              </strong>{" "}
+              will be removed from the catalogue for good, along with its
+              document checklist.
+              {/* Drafting is only worth suggesting to someone who has not
+                  already done it; otherwise it reads as though they had
+                  missed a step. */}
+              {pendingDelete.status === "published" &&
+                " To stop offering it while keeping its history, set it to draft instead."}
+              {pendingDelete.status !== "published" &&
+                " It is already a draft, so it is not being offered to new applicants."}
+            </>
+          )
+        }
+        confirmLabel="Delete visa type"
+        error={
+          remove.isError
+            ? apiErrorMessage(remove.error, "Could not delete this visa type.")
+            : null
+        }
+        loading={remove.isPending}
+        onConfirm={() => pendingDelete && remove.mutate(pendingDelete)}
+        onCancel={() => {
+          remove.reset();
+          setPendingDelete(null);
+        }}
+      />
     </div>
   );
 }

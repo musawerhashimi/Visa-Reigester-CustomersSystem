@@ -147,6 +147,37 @@
   animation: toast-in 150ms ease-out;
 }
 
+/* A modal's backdrop fades while the panel rises into it, so the page behind
+   recedes rather than being cut away. The reduced-motion block below collapses
+   both to nothing. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 150ms ease-out;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-dialog-in {
+  animation: dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /*
  * The primary call to action.
  *
