@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -147,7 +148,22 @@ if os.getenv("REDIS_URL"):
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {"hosts": [os.getenv("REDIS_URL")]},
+            "CONFIG": {
+                "hosts": [
+                    {
+                        "address": os.getenv("REDIS_URL"),
+                        # channels-redis blocks on BZPOPMIN for 5s waiting for
+                        # messages. redis-py 8 defaults socket_timeout to 5s
+                        # too, so every idle websocket read timed out and
+                        # killed the consumer. The read timeout must outlast
+                        # the blocking pop.
+                        "socket_timeout": 15,
+                        "socket_connect_timeout": 5,
+                        "retry_on_timeout": True,
+                        "health_check_interval": 30,
+                    }
+                ]
+            },
         }
     }
 else:
@@ -237,6 +253,15 @@ EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+# Seconds before an SMTP connect or read gives up. Without it an unreachable
+# mail server holds the request for the OS TCP timeout (about two minutes).
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "15"))
+# Automatic emails are delivered on a background thread after the request's
+# transaction commits, so a slow mail server never slows the MIS or portal.
+# Off under `manage.py test`, where tests read mail.outbox straight away.
+EMAIL_SEND_IN_BACKGROUND = env_bool(
+    "EMAIL_SEND_IN_BACKGROUND", "test" not in sys.argv[1:2]
+)
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@example.com")
 COMPANY_NOTIFICATION_EMAIL = os.getenv("COMPANY_NOTIFICATION_EMAIL", "")
 

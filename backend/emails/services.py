@@ -8,9 +8,11 @@ at send time or expose object internals through attribute access.
 
 import logging
 import re
+import threading
 
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.db import connection, transaction
 from django.utils import timezone
 
 from .models import EmailLog, EmailTemplate
@@ -157,6 +159,7 @@ def _connection_for(config):
         # Django rejects having both on, and the pairing is conventional:
         # 587 with STARTTLS, 465 with implicit SSL.
         use_ssl=not config.smtp_use_tls and (config.smtp_port == 465),
+        timeout=settings.EMAIL_TIMEOUT,
     )
 
 
@@ -178,7 +181,8 @@ def send_email(
 
     A delivery failure is recorded on the log and swallowed: the status change
     that triggered the email has already happened and must not be undone by an
-    unreachable SMTP server.
+    unreachable SMTP server. Automatic emails are delivered in the background
+    (see EMAIL_SEND_IN_BACKGROUND), so their log is returned still queued.
     """
     log = EmailLog.objects.create(
         to_email=to_email,
@@ -193,19 +197,49 @@ def send_email(
         status=EmailLog.Status.QUEUED,
     )
 
+    sender_branch = branch or (application.branch if application is not None else None)
+    if is_automatic and settings.EMAIL_SEND_IN_BACKGROUND:
+        # Automatic mail rides along with some other action (an upload, a
+        # status change). That action should not wait on a mail server, so
+        # delivery happens after the transaction commits, off the request.
+        transaction.on_commit(
+            lambda: threading.Thread(
+                target=_deliver_in_background,
+                args=(log.pk, sender_branch, attachments),
+                daemon=True,
+            ).start()
+        )
+        return log
+
+    # Staff composing by hand wait for the result, so they learn at once if
+    # the message did not go out. EMAIL_TIMEOUT bounds how long that is.
+    _deliver(log, sender_branch, attachments)
+    return log
+
+
+def _deliver_in_background(log_pk, sender_branch, attachments):
+    try:
+        log = EmailLog.objects.get(pk=log_pk)
+        _deliver(log, sender_branch, attachments)
+    except Exception:
+        logger.exception("Background delivery of email %s failed", log_pk)
+    finally:
+        # This thread opened its own database connection; don't leak it.
+        connection.close()
+
+
+def _deliver(log, sender_branch, attachments):
+    """Hand one logged email to the mail server and record the outcome."""
     try:
         # Mail about an application goes out as the branch handling it.
         # `branch` covers the rest — a password reset, say, which belongs to a
         # customer rather than to any one application.
-        sender_branch = branch or (
-            application.branch if application is not None else None
-        )
         message = EmailMessage(
-            subject=subject,
-            body=body,
+            subject=log.subject,
+            body=log.body,
             from_email=sender_address(sender_branch),
-            to=[to_email],
-            cc=cc or None,
+            to=[log.to_email],
+            cc=log.cc.split(",") if log.cc else None,
             connection=mail_connection(sender_branch),
         )
         for attachment in attachments or []:
@@ -217,8 +251,8 @@ def send_email(
         log.status = EmailLog.Status.FAILED
         log.error_message = str(error)
         log.save(update_fields=["status", "error_message", "updated_at"])
-        logger.exception("Failed to send email to %s", to_email)
-        return log
+        logger.exception("Failed to send email to %s", log.to_email)
+        return
 
     log.status = EmailLog.Status.SENT
     log.sent_at = timezone.now()
@@ -227,7 +261,6 @@ def send_email(
     # Section 32: the email and what was attached both belong to the
     # application history, so staff can see later what a customer was sent.
     _store_attachments(log, attachments)
-    return log
 
 
 def _store_attachments(log, attachments):

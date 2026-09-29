@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from rest_framework.test import APIClient
 
 from applications.models import Application
@@ -580,3 +580,48 @@ def _application_for_links():
         first_name="Link",
         last_name="Test",
     )
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    EMAIL_SEND_IN_BACKGROUND=True,
+)
+class BackgroundDeliveryTests(TransactionTestCase):
+    """Automatic mail must not hold up the request that triggered it."""
+
+    def _join_mail_threads(self):
+        import threading
+
+        for thread in threading.enumerate():
+            if thread is not threading.current_thread() and thread.daemon:
+                thread.join(timeout=5)
+
+    def test_automatic_email_is_delivered_after_commit(self):
+        from django.db import transaction
+
+        from . import services
+
+        with transaction.atomic():
+            log = services.send_email(
+                to_email="customer@mail.test", subject="Hello", body="Body"
+            )
+            # Nothing is sent while the triggering transaction is open.
+            self.assertEqual(log.status, EmailLog.Status.QUEUED)
+            self.assertEqual(len(mail.outbox), 0)
+
+        self._join_mail_threads()
+        log.refresh_from_db()
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_manual_email_is_still_sent_immediately(self):
+        from . import services
+
+        log = services.send_email(
+            to_email="customer@mail.test",
+            subject="Hello",
+            body="Body",
+            is_automatic=False,
+        )
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+        self.assertEqual(len(mail.outbox), 1)
