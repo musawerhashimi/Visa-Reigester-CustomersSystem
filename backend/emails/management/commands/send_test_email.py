@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.management.base import BaseCommand, CommandError
 
-from emails.services import sender_address
+from emails.services import mail_connection, sender_address
 
 
 class Command(BaseCommand):
@@ -22,7 +22,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         recipient = options["recipient"]
-        backend = settings.EMAIL_BACKEND
+        connection = mail_connection()
+        backend = (
+            f"{type(connection).__module__}.{type(connection).__name__}"
+            if connection is not None
+            else settings.EMAIL_BACKEND
+        )
 
         self.stdout.write(f"Backend: {backend}")
         self.stdout.write(f"Host:    {settings.EMAIL_HOST or '(unset)'}")
@@ -42,6 +47,7 @@ class Command(BaseCommand):
             body="If you are reading this, sending works.",
             from_email=sender_address(),
             to=[recipient],
+            connection=connection,
         )
         message.send(fail_silently=False)
 

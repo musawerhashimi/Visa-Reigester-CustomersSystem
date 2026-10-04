@@ -625,3 +625,100 @@ class BackgroundDeliveryTests(TransactionTestCase):
         )
         self.assertEqual(log.status, EmailLog.Status.SENT)
         self.assertEqual(len(mail.outbox), 1)
+
+
+class _FakeResponse:
+    def __init__(self, body=b'{"id": "abc"}'):
+        self.body = body
+
+    def read(self):
+        return self.body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+@override_settings(
+    RESEND_API_KEY="re_test",
+    EMAIL_SEND_IN_BACKGROUND=False,
+    MEDIA_ROOT="/tmp/visacrm-email-test-media",
+)
+class ResendTests(TestCase):
+    """Where SMTP is blocked, mail goes out over Resend's HTTPS API."""
+
+    def setUp(self):
+        from cms.models import CompanyInfo
+
+        info = CompanyInfo.load()
+        info.sending_email = "info@office.test"
+        # A saved SMTP server must not be tried once a Resend key is set.
+        info.smtp_host = "mail.office.test"
+        info.smtp_enabled = True
+        info.save()
+
+    def _send(self, **kwargs):
+        from . import services
+
+        return services.send_email(
+            to_email="customer@mail.test",
+            subject="Hello",
+            body="Body",
+            is_automatic=False,
+            **kwargs,
+        )
+
+    def test_the_key_takes_precedence_over_saved_smtp(self):
+        from .backends import ResendEmailBackend
+        from .services import mail_connection
+
+        self.assertIsInstance(mail_connection(), ResendEmailBackend)
+
+    def test_a_message_is_posted_to_resend(self):
+        import json
+        from unittest import mock
+
+        with mock.patch(
+            "urllib.request.urlopen", return_value=_FakeResponse()
+        ) as urlopen:
+            log = self._send(
+                attachments=[
+                    {
+                        "filename": "letter.pdf",
+                        "content": b"%PDF",
+                        "mimetype": "application/pdf",
+                    }
+                ]
+            )
+
+        self.assertEqual(log.status, EmailLog.Status.SENT)
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.resend.com/emails")
+        self.assertEqual(request.get_header("Authorization"), "Bearer re_test")
+        payload = json.loads(request.data)
+        self.assertEqual(payload["from"], "info@office.test")
+        self.assertEqual(payload["to"], ["customer@mail.test"])
+        self.assertEqual(payload["text"], "Body")
+        self.assertEqual(
+            payload["attachments"], [{"filename": "letter.pdf", "content": "JVBERg=="}]
+        )
+
+    def test_a_rejection_is_logged_with_resends_reason(self):
+        import io
+        import urllib.error
+        from unittest import mock
+
+        error = urllib.error.HTTPError(
+            "https://api.resend.com/emails",
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(b'{"message": "The office.test domain is not verified."}'),
+        )
+        with mock.patch("urllib.request.urlopen", side_effect=error):
+            log = self._send()
+
+        self.assertEqual(log.status, EmailLog.Status.FAILED)
+        self.assertIn("domain is not verified", log.error_message)

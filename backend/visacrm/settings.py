@@ -256,6 +256,9 @@ EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
 # Seconds before an SMTP connect or read gives up. Without it an unreachable
 # mail server holds the request for the OS TCP timeout (about two minutes).
 EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "15"))
+# When set, all mail goes through Resend over HTTPS and the SMTP settings saved
+# in the MIS are ignored. For hosts that block outbound SMTP (Railway Hobby).
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 # Automatic emails are delivered on a background thread after the request's
 # transaction commits, so a slow mail server never slows the MIS or portal.
 # Off under `manage.py test`, where tests read mail.outbox straight away.

@@ -135,7 +135,15 @@ def mail_connection(branch=None):
     server is used. Returns None when neither has SMTP enabled, which leaves
     Django to use EMAIL_BACKEND as configured in the environment — so an
     install that was set up the old way is untouched.
+
+    RESEND_API_KEY overrides all of it: where SMTP is blocked, no saved server
+    can be reached, so every office sends through Resend.
     """
+    if settings.RESEND_API_KEY:
+        from django.core.mail import get_connection
+
+        return get_connection(backend="emails.backends.ResendEmailBackend")
+
     if branch is not None and branch.has_own_mail_server:
         return _connection_for(branch)
 

@@ -52,6 +52,7 @@ Connect the repo and set **Root Directory** to `backend`. Variables:
 | `CSRF_TRUSTED_ORIGINS` | `https://<frontend-domain>` |
 | `SITE_URL` | `https://<frontend-domain>` |
 | `COMPANY_NOTIFICATION_EMAIL` | optional last-resort inbox (see below) |
+| `RESEND_API_KEY` | required on Hobby, where SMTP is blocked; mail then goes through Resend and the MIS mail server settings are ignored |
 | `DJANGO_SUPERUSER_EMAIL` | optional, creates an admin on first boot |
 | `DJANGO_SUPERUSER_PASSWORD` | optional, required with the above |
 
