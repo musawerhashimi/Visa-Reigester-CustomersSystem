@@ -596,3 +596,61 @@ class AssignmentTests(TestCase):
         self.assertEqual(
             client.get(f"/api/applications/{theirs.pk}/").status_code, 404
         )
+
+
+class ApplicationSearchTests(TestCase):
+    """The MIS list box sends `?search=`; the viewset must honour it."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.core.management import call_command
+
+        call_command("seed_demo", verbosity=0)
+        cls.visa = VisaType.objects.get(slug="germany-student-visa")
+        cls.admin = User.objects.create_user(
+            email="admin@search.test",
+            password="StrongPass2026!",
+            role=User.Role.SUPER_ADMIN,
+        )
+        cls.customer_user = User.objects.create_user(
+            email="search@test.local", password="StrongPass2026!"
+        )
+        cls.profile = CustomerProfile.objects.create(user=cls.customer_user)
+
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin)
+
+    def test_search_matches_name_and_ignores_unrelated_rows(self):
+        hit = Application.objects.create(
+            customer=self.profile,
+            visa_type=self.visa,
+            first_name="Farhad",
+            last_name="Ahmadi",
+            passport_number="P1234567",
+        )
+        Application.objects.create(
+            customer=self.profile,
+            visa_type=self.visa,
+            first_name="Someone",
+            last_name="Else",
+            passport_number="X9999999",
+        )
+
+        by_name = self.client.get("/api/applications/", {"search": "Farhad"})
+        self.assertEqual(by_name.status_code, 200)
+        self.assertEqual(
+            {row["id"] for row in by_name.data["results"]}, {hit.pk}
+        )
+
+        by_passport = self.client.get("/api/applications/", {"search": "P1234567"})
+        self.assertEqual(
+            {row["id"] for row in by_passport.data["results"]}, {hit.pk}
+        )
+
+        by_number = self.client.get(
+            "/api/applications/", {"search": hit.application_number}
+        )
+        self.assertEqual(
+            {row["id"] for row in by_number.data["results"]}, {hit.pk}
+        )

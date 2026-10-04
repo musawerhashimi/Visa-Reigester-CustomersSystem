@@ -1,6 +1,5 @@
 from django.contrib.auth import get_user_model
 from django.db import models
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -33,7 +32,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = (IsOwnerOrMIS,)
-    filter_backends = (DjangoFilterBackend,)
+    # Search and ordering come from DEFAULT_FILTER_BACKENDS. Overriding
+    # filter_backends here used to drop SearchFilter, so the MIS search box
+    # sent `?search=` and the list never narrowed.
     filterset_fields = ("status", "priority", "visa_type", "assigned_to", "branch")
     search_fields = (
         "application_number",
